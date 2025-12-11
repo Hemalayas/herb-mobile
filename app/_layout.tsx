@@ -5,11 +5,13 @@ import { initDatabase } from '../src/services/database';
 import { useAppStore } from '../src/store/appStore';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import BadgeUnlockModal from '../src/components/BadgeUnlockModal';
+import { initRevenueCat } from '../src/services/revenueCat';
 
 export default function RootLayout() {
   useEffect(() => {
     const setup = async () => {
       initDatabase();
+      await initRevenueCat(); // Initialize RevenueCat
       await useAppStore.getState().loadSettings();
       await useAppStore.getState().loadRecoveryMode();
       await useAppStore.getState().loadSessions();
