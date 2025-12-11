@@ -45,20 +45,44 @@ export default function RecoveryScreen() {
   };
 
   const handleCompleteTBreak = () => {
-    Alert.alert(
-      'Complete T-Break?',
-      'Congratulations on your progress!',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Complete',
-          onPress: () => {
-            completeTBreak();
-            Alert.alert('T-Break Complete! 🎉', 'Great job!');
+    if (!activeTBreak || !activeTBreakEndDate) return;
+
+    const now = Date.now();
+    const daysElapsed = Math.floor((now - activeTBreak.startDate) / (24 * 60 * 60 * 1000));
+    const goalDays = activeTBreak.goalDays;
+
+    if (daysElapsed < goalDays) {
+      Alert.alert(
+        'T-Break Not Complete',
+        `You've made it ${daysElapsed} ${daysElapsed === 1 ? 'day' : 'days'}, but your goal was ${goalDays} ${goalDays === 1 ? 'day' : 'days'}. Keep going! 💪\n\nYou can end it early, but you'll need to complete the full duration to earn the T-Break Complete badge.`,
+        [
+          { text: 'Keep Going', style: 'cancel' },
+          {
+            text: 'End Early',
+            style: 'destructive',
+            onPress: () => {
+              completeTBreak();
+              Alert.alert('T-Break Ended', 'You ended your break early. Start a new one anytime!');
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Complete T-Break?',
+        'Congratulations on reaching your goal!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Complete',
+            onPress: () => {
+              completeTBreak();
+              Alert.alert('T-Break Complete! 🎉', 'Great job completing your full break!');
+            },
+          },
+        ]
+      );
+    }
   };
 
   const handleEnterRecovery = () => {
@@ -152,6 +176,49 @@ export default function RecoveryScreen() {
     );
   };
 
+  const renderHealthMilestone = (
+    requiredDays: number,
+    label: string,
+    description: string,
+    isInRecoveryMode: boolean,
+    startDate: number | null
+  ) => {
+    let isCompleted = false;
+    let isActive = false;
+
+    if (isInRecoveryMode && startDate) {
+      const daysSober = differenceInDays(Date.now(), startDate);
+      isCompleted = daysSober >= requiredDays;
+      isActive = !isCompleted && daysSober >= requiredDays - 1;
+    } else if (activeTBreak) {
+      const daysSober = differenceInDays(Date.now(), activeTBreak.startDate);
+      isCompleted = daysSober >= requiredDays;
+      isActive = !isCompleted && daysSober >= requiredDays - 1;
+    }
+
+    const badge = isCompleted ? '✅' : isActive ? '🔄' : '⏳';
+    const lineColor = isCompleted ? '#22C55E' : isActive ? '#F59E0B' : theme.border;
+
+    return (
+      <View key={`${requiredDays}-${label}`} style={styles.timelineItem}>
+        <View style={styles.timelineBadgeContainer}>
+          <Text style={[styles.timelineBadge, { opacity: isCompleted ? 1 : 0.5 }]}>{badge}</Text>
+          {requiredDays !== 365 && (
+            <View style={[styles.timelineLine, { backgroundColor: lineColor, opacity: 0.3 }]} />
+          )}
+        </View>
+        <View style={styles.timelineContent}>
+          <Text style={[styles.timelineTitle, { color: theme.text, opacity: isCompleted ? 1 : 0.7 }]}>
+            {label}
+          </Text>
+          <Text style={[styles.timelineDesc, { color: theme.textSecondary, opacity: isCompleted ? 1 : 0.6 }]}>
+            {description}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
@@ -220,42 +287,27 @@ export default function RecoveryScreen() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>Health Timeline</Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+          Recovery milestones and health benefits
+        </Text>
         <View style={[styles.timelineCard, { backgroundColor: theme.card }]}>
-          <View style={styles.timelineItem}>
-            <Text style={styles.timelineBadge}>✅</Text>
-            <View style={styles.timelineContent}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>24 hours</Text>
-              <Text style={[styles.timelineDesc, { color: theme.textSecondary }]}>Lung capacity improves</Text>
-            </View>
-          </View>
-          <View style={styles.timelineItem}>
-            <Text style={styles.timelineBadge}>✅</Text>
-            <View style={styles.timelineContent}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>3 days</Text>
-              <Text style={[styles.timelineDesc, { color: theme.textSecondary }]}>Brain fog begins to fade</Text>
-            </View>
-          </View>
-          <View style={styles.timelineItem}>
-            <Text style={styles.timelineBadge}>⏳</Text>
-            <View style={styles.timelineContent}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>1 week</Text>
-              <Text style={[styles.timelineDesc, { color: theme.textSecondary }]}>Sleep patterns normalize</Text>
-            </View>
-          </View>
-          <View style={styles.timelineItem}>
-            <Text style={styles.timelineBadge}>⏳</Text>
-            <View style={styles.timelineContent}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>2 weeks</Text>
-              <Text style={[styles.timelineDesc, { color: theme.textSecondary }]}>Memory & focus improve</Text>
-            </View>
-          </View>
-          <View style={styles.timelineItem}>
-            <Text style={styles.timelineBadge}>⏳</Text>
-            <View style={styles.timelineContent}>
-              <Text style={[styles.timelineTitle, { color: theme.text }]}>1 month</Text>
-              <Text style={[styles.timelineDesc, { color: theme.textSecondary }]}>Tolerance fully reset</Text>
-            </View>
-          </View>
+          {renderHealthMilestone(1, '20 minutes', 'Heart rate & blood pressure normalize', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1, '8 hours', 'Carbon monoxide levels drop to normal', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1, '24 hours', 'Lungs start clearing out mucus', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(2, '2 days', 'Nerve endings begin to heal', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(3, '3 days', 'Brain fog begins to lift', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(3, '3 days', 'Breathing becomes easier', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(7, '1 week', 'Sleep quality improves significantly', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(7, '1 week', 'Energy levels increase', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(14, '2 weeks', 'Memory & concentration improve', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(14, '2 weeks', 'Physical fitness improves', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(21, '3 weeks', 'Mood stabilizes', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(30, '1 month', 'Tolerance fully reset', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(30, '1 month', 'Lung function increases significantly', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(60, '2 months', 'Mental clarity fully restored', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(90, '3 months', 'Immune system strengthened', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(180, '6 months', 'Long-term brain function restored', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(365, '1 year', 'Risk of respiratory issues greatly reduced', isRecoveryMode, sobrietyStartDate)}
         </View>
       </View>
     </ScrollView>
@@ -287,7 +339,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
     marginBottom: 15,
+    lineHeight: 20,
   },
   card: {
     borderRadius: 16,
@@ -420,17 +477,29 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    paddingLeft: 4,
+  },
+  timelineBadgeContainer: {
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingLeft: 16,
-    marginLeft: 12,
+    marginRight: 12,
+    position: 'relative',
   },
   timelineBadge: {
     fontSize: 24,
-    marginRight: 12,
+    zIndex: 1,
+  },
+  timelineLine: {
+    position: 'absolute',
+    top: 28,
+    left: 11,
+    width: 2,
+    height: 40,
   },
   timelineContent: {
     flex: 1,
+    paddingTop: 4,
   },
   timelineTitle: {
     fontSize: 16,
@@ -439,5 +508,6 @@ const styles = StyleSheet.create({
   },
   timelineDesc: {
     fontSize: 14,
+    lineHeight: 20,
   },
 });

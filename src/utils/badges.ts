@@ -289,14 +289,24 @@ export const calculateBadgeProgress = (
         break;
 
       case 't_break_complete':
-        const completedTBreaks = tbreaks.filter(t => t.completed);
-        progress = completedTBreaks.length > 0 ? 100 : 0;
-        if (completedTBreaks.length > 0) unlockedAt = completedTBreaks[0].endDate;
+        // Only award if user completed the full duration of the t-break
+        const fullyCompletedTBreaks = tbreaks.filter(t => {
+          if (!t.completed || !t.endDate) return false;
+          const daysElapsed = Math.floor((t.endDate - t.startDate) / (24 * 60 * 60 * 1000));
+          return daysElapsed >= t.goalDays;
+        });
+        progress = fullyCompletedTBreaks.length > 0 ? 100 : 0;
+        timesEarned = fullyCompletedTBreaks.length;
+        if (fullyCompletedTBreaks.length > 0) unlockedAt = fullyCompletedTBreaks[0].endDate;
         break;
 
       case 'phoenix':
-        // Phoenix badge: Complete a t-break after having a slip-up
-        const phoenixTBreaks = tbreaks.filter(t => t.completed && t.hadSlipUp);
+        // Phoenix badge: Complete a t-break after having a slip-up (must complete full duration)
+        const phoenixTBreaks = tbreaks.filter(t => {
+          if (!t.completed || !t.hadSlipUp || !t.endDate) return false;
+          const daysElapsed = Math.floor((t.endDate - t.startDate) / (24 * 60 * 60 * 1000));
+          return daysElapsed >= t.goalDays;
+        });
         progress = phoenixTBreaks.length > 0 ? 100 : 0;
         if (phoenixTBreaks.length > 0) unlockedAt = phoenixTBreaks[0].endDate;
         timesEarned = phoenixTBreaks.length;

@@ -1421,7 +1421,7 @@ export default function StatsScreen() {
                   <View style={[styles.card, { backgroundColor: theme.card }]}>
                     <LineChart
                       data={moodTimeline}
-                      width={screenWidth - 72}
+                      width={screenWidth - 88}
                       height={220}
                       spacing={moodTimeline.length > 10 ? 20 : 30}
                       color={theme.primary}
@@ -1430,17 +1430,22 @@ export default function StatsScreen() {
                       endFillColor={theme.primary + '10'}
                       startOpacity={0.9}
                       endOpacity={0.2}
-                      initialSpacing={10}
+                      initialSpacing={20}
+                      endSpacing={20}
                       noOfSections={5}
                       maxValue={5}
                       yAxisColor={theme.border}
                       xAxisColor={theme.border}
-                      yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-                      xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+                      yAxisTextStyle={{ color: theme.text, fontSize: 12, fontWeight: '600' }}
+                      xAxisLabelTextStyle={{ color: theme.text, fontSize: 11, fontWeight: '600' }}
                       areaChart
                       curved
                       isAnimated
                       animationDuration={1000}
+                      hideDataPoints={false}
+                      dataPointsColor={theme.primary}
+                      dataPointsRadius={4}
+                      hideRules
                     />
                   </View>
                 </View>
