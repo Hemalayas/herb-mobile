@@ -10,7 +10,9 @@ import {
   Alert,
   ScrollView,
   Image,
+  Platform,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BarChart } from 'react-native-gifted-charts';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -884,11 +886,15 @@ export default function HomeScreen() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Ready to track?</Text>
       </View>
 
-      <View
+      <LinearGradient
+        colors={
+          isLimitExceeded
+            ? ['#FEE2E2', theme.card]
+            : [theme.primary + '10', theme.card]
+        }
         style={[
           styles.countCard,
           {
-            backgroundColor: theme.card,
             borderColor: isLimitExceeded ? '#EF4444' : theme.primary,
           },
         ]}
@@ -946,7 +952,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </LinearGradient>
 
       {/* 👇 No spending chart in normal mode anymore */}
 
@@ -1004,19 +1010,32 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalTitleContainer}>
-                <Image
-                  source={methodImages[selectedMethod]}
-                  style={styles.modalIcon}
-                  resizeMode="contain"
-                />
-                <Text style={[styles.modalTitle, { color: theme.text }]}>
-                  Log {selectedMethod.charAt(0).toUpperCase() + selectedMethod.slice(1)} Session
-                </Text>
-              </View>
+              <LinearGradient
+                colors={[theme.primary + '15', 'transparent']}
+                style={styles.modalHeaderGradient}
+              >
+                <View style={styles.modalTitleContainer}>
+                  <View style={[styles.modalIconContainer, { backgroundColor: theme.primary + '20' }]}>
+                    <Image
+                      source={methodImages[selectedMethod]}
+                      style={styles.modalIcon}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>
+                    Log {selectedMethod.charAt(0).toUpperCase() + selectedMethod.slice(1)} Session
+                  </Text>
+                  <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+                    Track your experience
+                  </Text>
+                </View>
+              </LinearGradient>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.text }]}>Strain (optional)</Text>
+              <View style={{ paddingHorizontal: 24 }}>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: theme.text }]}>
+                    🌿 Strain (optional)
+                  </Text>
                 <TextInput
                   style={[
                     styles.textInput,
@@ -1031,10 +1050,12 @@ export default function HomeScreen() {
                   placeholder="e.g., Blue Dream"
                   placeholderTextColor={theme.textSecondary}
                 />
-              </View>
+                </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.text }]}>Amount in grams (optional)</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: theme.text }]}>
+                    ⚖️ Amount in grams (optional)
+                  </Text>
                 <TextInput
                   style={[
                     styles.textInput,
@@ -1050,10 +1071,12 @@ export default function HomeScreen() {
                   keyboardType="decimal-pad"
                   placeholderTextColor={theme.textSecondary}
                 />
-              </View>
+                </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.text }]}>Cost {currencySymbol} (optional)</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: theme.text }]}>
+                    💰 Cost {currencySymbol} (optional)
+                  </Text>
                 <TextInput
                   style={[
                     styles.textInput,
@@ -1069,22 +1092,26 @@ export default function HomeScreen() {
                   keyboardType="decimal-pad"
                   placeholderTextColor={theme.textSecondary}
                 />
-              </View>
+                </View>
 
-              <View style={styles.inputGroup}>
-                <View style={styles.switchRow}>
-                  <Text style={[styles.inputLabel, { color: theme.text }]}>With friends?</Text>
+                <View style={styles.inputGroup}>
+                  <View style={styles.switchRow}>
+                    <Text style={[styles.inputLabel, { color: theme.text }]}>
+                      👥 With friends?
+                    </Text>
                   <Switch
                     value={isSocial}
                     onValueChange={setIsSocial}
                     trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
                     thumbColor={isSocial ? '#00D084' : '#F3F4F6'}
                   />
+                  </View>
                 </View>
-              </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.text }]}>Notes (optional)</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: theme.text }]}>
+                    📝 Notes (optional)
+                  </Text>
                 <TextInput
                   style={[
                     styles.textInput,
@@ -1102,10 +1129,12 @@ export default function HomeScreen() {
                   multiline
                   numberOfLines={3}
                 />
-              </View>
+                </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.text }]}>Mood (optional)</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.inputLabel, { color: theme.text }]}>
+                    😊 Mood (optional)
+                  </Text>
                 <View style={styles.moodGrid}>
                   {[
                     { value: 'relaxed' as Mood, emoji: '😌', label: 'Relaxed' },
@@ -1145,14 +1174,17 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
+                </View>
 
-              <View style={styles.modalButtons}>
+                <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[
                     styles.modalButton,
                     styles.cancelButton,
-                    { backgroundColor: theme.inputBackground },
+                    {
+                      backgroundColor: theme.inputBackground,
+                      borderColor: theme.border,
+                    },
                   ]}
                   onPress={() => setShowDetailModal(false)}
                 >
@@ -1170,6 +1202,7 @@ export default function HomeScreen() {
                 >
                   <Text style={styles.logButtonText}>Log Session</Text>
                 </TouchableOpacity>
+              </View>
               </View>
             </ScrollView>
           </View>
@@ -1340,38 +1373,67 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    paddingBottom: 24,
     maxHeight: '85%',
   },
+  modalHeaderGradient: {
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    marginHorizontal: -24,
+    marginTop: -24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
   modalTitleContainer: {
-    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-    gap: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   modalIcon: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 48,
   },
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
     textAlign: 'center',
   },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: 0.3,
   },
   textInput: {
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     fontSize: 16,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   textArea: {
     height: 80,
@@ -1385,24 +1447,34 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
+    marginTop: 28,
+    paddingTop: 8,
   },
   modalButton: {
     flex: 1,
-    padding: 16,
-    borderRadius: 12,
+    padding: 18,
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
   },
-  cancelButton: {},
+  cancelButton: {
+    borderWidth: 1.5,
+  },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   logButton: {},
   logButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   sessionImageContainer: {
     alignItems: 'center',
@@ -1612,19 +1684,25 @@ const styles = StyleSheet.create({
   moodButton: {
     width: '23%',
     aspectRatio: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   moodEmoji: {
-    fontSize: 24,
-    marginBottom: 4,
+    fontSize: 28,
+    marginBottom: 6,
   },
   moodLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 });
