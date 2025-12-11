@@ -1,8 +1,9 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, TextInput, Image } from 'react-native';
 import { useAppStore } from '../../src/store/appStore';
 import { useEffect, useState } from 'react';
 import { differenceInDays, differenceInHours, differenceInMinutes, format } from 'date-fns';
 import { useTheme } from '../../src/context/ThemeContext';
+
 
 export default function RecoveryScreen() {
   const theme = useTheme();
@@ -66,7 +67,12 @@ export default function RecoveryScreen() {
       'This will track your sobriety journey',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Start Recovery', onPress: enterRecoveryMode },
+        {
+          text: 'Start Recovery',
+          onPress: async () => {
+            await enterRecoveryMode();
+          }
+        },
       ]
     );
   };
@@ -77,7 +83,13 @@ export default function RecoveryScreen() {
       'Your progress will be saved',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Exit', style: 'destructive', onPress: exitRecoveryMode },
+        {
+          text: 'Exit',
+          style: 'destructive',
+          onPress: async () => {
+            await exitRecoveryMode();
+          },
+        },
       ]
     );
   };
@@ -143,7 +155,16 @@ export default function RecoveryScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>💚 Recovery</Text>
+        {/* Changed the Title to include the Image */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+          <Image 
+            source={require('../../assets/recovery.png')} 
+            style={{ width: 60, height: 60, marginRight: 1 }} // Adjust size as needed
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: theme.text }]}>Recovery</Text>
+        </View>
+        
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Your wellness journey</Text>
       </View>
 

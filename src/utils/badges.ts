@@ -91,10 +91,21 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
   // T-BREAK
   { id: 'starting', name: 'Starting', description: 'Begin your journey', imageId: 'starting', category: 'tbreak', requirement: 1 },
   { id: 't_break_complete', name: 'T-Break Complete', description: 'Complete a T-Break', imageId: 't_break_complete', category: 'tbreak', requirement: 1 },
-  
+  { id: 'clean_slate', name: 'Clean Slate', description: '7 days sober during t-break', imageId: 'clean_slate', category: 'tbreak', requirement: 7 },
+  { id: 'lung_capacity', name: 'Lung Capacity', description: 'Lungs improving (3+ days sober)', imageId: 'lung_capacity', category: 'tbreak', requirement: 3 },
+  { id: 'rem', name: 'REM Sleep', description: 'Sleep normalizing (7+ days sober)', imageId: 'rem', category: 'tbreak', requirement: 7 },
+  { id: 'clarity', name: 'Clarity', description: 'Mental clarity returning (30+ days sober)', imageId: 'clarity', category: 'tbreak', requirement: 30 },
+  { id: 'retired', name: 'Retired', description: 'Enter recovery mode', imageId: 'retired', category: 'tbreak', requirement: 1 },
+
   // USAGE
   { id: 'first_spark', name: 'First Spark', description: 'Log your first session', imageId: 'first_spark', category: 'usage', requirement: 1 },
+  { id: 'lore_master', name: 'Lore Master', description: '100 total sessions', imageId: 'lore_master', category: 'usage', requirement: 100 },
   { id: 'blinker', name: 'Blinker', description: '50 pen sessions', imageId: 'blinker', category: 'usage', requirement: 50 },
+  { id: 'ripper', name: 'Ripper', description: '100 bong sessions', imageId: 'ripper', category: 'usage', requirement: 100 },
+  { id: 'paper_mache', name: 'Paper Mache', description: '50 joint sessions', imageId: 'paper_mache', category: 'usage', requirement: 50 },
+  { id: 'dab', name: 'Dab Master', description: '50 dab sessions', imageId: 'dab', category: 'usage', requirement: 50 },
+  { id: 'munchies', name: 'Munchies', description: '50 edible sessions', imageId: 'munchies', category: 'usage', requirement: 50 },
+  { id: 'iron_lungs', name: 'Iron Lungs', description: 'Only bong sessions for a week', imageId: 'iron_lungs', category: 'usage', requirement: 7 },
   
   // TIME
   { id: 'night_owl', name: 'Night Owl', description: 'Log session after 10pm', imageId: 'night_owl', category: 'time', requirement: 1 },
@@ -104,7 +115,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
   
   // SPECIAL
   { id: 'uh_oh', name: 'Uh Oh', description: 'Over your limit', imageId: 'uh_oh', category: 'special', requirement: 1 },
-  { id: 'phoenix', name: 'Phoenix', description: '3 days after slip-up', imageId: 'phoenix', category: 'special', requirement: 1 },
+  { id: 'phoenix', name: 'Phoenix', description: 'Complete a T-Break after a slip-up', imageId: 'phoenix', category: 'special', requirement: 1 },
   { id: 'according_to_plan', name: 'According to Plan', description: 'Under limit 7 days', imageId: 'according_to_plan', category: 'special', requirement: 7 },
   
   // VARIETY
@@ -134,15 +145,38 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
   { id: 'lone_wolf', name: 'Lone Wolf', description: 'Solo session', imageId: 'lone_wolf', category: 'special', requirement: 1 },
 ];
 
-export const calculateBadgeProgress = (sessions: Session[], tbreaks: TBreak[]): Badge[] => {
+export const calculateBadgeProgress = (
+  sessions: Session[],
+  tbreaks: TBreak[],
+  settings?: { dailyLimit?: number; weeklyLimit?: number },
+  recoveryMode?: { isRecoveryMode: boolean; sobrietyStartDate: number | null }
+): Badge[] => {
   const badges: Badge[] = [];
 
   const uniqueStrains = new Set(sessions.filter(s => s.strain).map(s => s.strain!.toLowerCase()));
   const totalSpent = sessions.reduce((sum, s) => sum + (s.cost || 0), 0);
   const totalAmount = sessions.reduce((sum, s) => sum + (s.amount || 0), 0);
   const penCount = sessions.filter(s => s.method === 'pen').length;
+  const bongCount = sessions.filter(s => s.method === 'bong').length;
+  const jointCount = sessions.filter(s => s.method === 'joint').length;
+  const dabCount = sessions.filter(s => s.method === 'dab').length;
+  const edibleCount = sessions.filter(s => s.method === 'edible').length;
   const socialCount = sessions.filter(s => s.social === true).length;
   const soloCount = sessions.filter(s => s.social !== true).length;
+  const totalSessions = sessions.length;
+
+  // Check if user has exceeded their daily or weekly limit
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todaySessions = sessions.filter(s => s.timestamp >= today.getTime());
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  const weekSessions = sessions.filter(s => s.timestamp >= weekStart.getTime());
+
+  const hasExceededLimit =
+    (settings?.dailyLimit && todaySessions.length > settings.dailyLimit) ||
+    (settings?.weeklyLimit && weekSessions.length > settings.weeklyLimit);
 
   // The Scientist: track unique methods used
   const uniqueMethods = new Set(sessions.map(s => s.method));
@@ -164,19 +198,64 @@ export const calculateBadgeProgress = (sessions: Session[], tbreaks: TBreak[]): 
     return (d.getHours() === 16 || d.getHours() === 4) && d.getMinutes() === 20;
   }).length;
 
+  // Weekend warrior: sessions on Saturday or Sunday
+  const weekendCount = sessions.filter(s => {
+    const day = new Date(s.timestamp).getDay();
+    return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+  }).length;
+
   const dayGroups = sessions.reduce((acc, s) => {
     const dayKey = startOfDay(s.timestamp).getTime();
     if (!acc[dayKey]) acc[dayKey] = new Set();
     acc[dayKey].add(s.method);
     return acc;
   }, {} as Record<number, Set<string>>);
-  
+
   let mixologistUnlocked = false;
   for (const methods of Object.values(dayGroups)) {
     if (methods.size >= 3) {
       mixologistUnlocked = true;
       break;
     }
+  }
+
+  // Iron Lungs: check if user only used bong for 7 consecutive days
+  let ironLungsEarned = 0;
+  const sortedSessions = [...sessions].sort((a, b) => a.timestamp - b.timestamp);
+  let consecutiveBongDays = 0;
+  let lastDayChecked = 0;
+
+  for (const session of sortedSessions) {
+    const sessionDay = startOfDay(session.timestamp).getTime();
+
+    if (sessionDay !== lastDayChecked) {
+      // New day
+      const daySession = sortedSessions.filter(s => startOfDay(s.timestamp).getTime() === sessionDay);
+      const allBong = daySession.every(s => s.method === 'bong');
+
+      if (allBong) {
+        consecutiveBongDays++;
+        if (consecutiveBongDays >= 7) {
+          ironLungsEarned++;
+          consecutiveBongDays = 0; // Reset to allow earning multiple times
+        }
+      } else {
+        consecutiveBongDays = 0;
+      }
+
+      lastDayChecked = sessionDay;
+    }
+  }
+
+  // Calculate days sober for t-break/recovery badges
+  const currentActiveTBreak = tbreaks.find(t => !t.completed);
+  const isInTBreakOrRecovery = currentActiveTBreak || recoveryMode?.isRecoveryMode;
+
+  let daysSoberForBadges = 0;
+  if (currentActiveTBreak) {
+    daysSoberForBadges = Math.floor((Date.now() - currentActiveTBreak.startDate) / (24 * 60 * 60 * 1000));
+  } else if (recoveryMode?.isRecoveryMode && recoveryMode.sobrietyStartDate) {
+    daysSoberForBadges = Math.floor((Date.now() - recoveryMode.sobrietyStartDate) / (24 * 60 * 60 * 1000));
   }
 
   for (const def of BADGE_DEFINITIONS) {
@@ -203,7 +282,9 @@ export const calculateBadgeProgress = (sessions: Session[], tbreaks: TBreak[]): 
         break;
 
       case 'starting':
+        // Track every t-break start (including recovery mode entries)
         progress = tbreaks.length > 0 ? 100 : 0;
+        timesEarned = tbreaks.length;
         if (tbreaks.length > 0) unlockedAt = tbreaks[0].startDate;
         break;
 
@@ -213,14 +294,136 @@ export const calculateBadgeProgress = (sessions: Session[], tbreaks: TBreak[]): 
         if (completedTBreaks.length > 0) unlockedAt = completedTBreaks[0].endDate;
         break;
 
+      case 'phoenix':
+        // Phoenix badge: Complete a t-break after having a slip-up
+        const phoenixTBreaks = tbreaks.filter(t => t.completed && t.hadSlipUp);
+        progress = phoenixTBreaks.length > 0 ? 100 : 0;
+        if (phoenixTBreaks.length > 0) unlockedAt = phoenixTBreaks[0].endDate;
+        timesEarned = phoenixTBreaks.length;
+        break;
+
       case 'first_spark':
         progress = sessions.length > 0 ? 100 : 0;
         if (sessions.length > 0) unlockedAt = sessions[sessions.length - 1].timestamp;
         break;
 
       case 'blinker':
+        const blinkerTimesEarned = Math.floor(penCount / def.requirement);
         progress = Math.min((penCount / def.requirement) * 100, 100);
-        if (penCount >= def.requirement) unlockedAt = Date.now();
+        timesEarned = blinkerTimesEarned;
+        if (blinkerTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'ripper':
+        const ripperTimesEarned = Math.floor(bongCount / def.requirement);
+        progress = Math.min((bongCount / def.requirement) * 100, 100);
+        timesEarned = ripperTimesEarned;
+        if (ripperTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'paper_mache':
+        const paperTimesEarned = Math.floor(jointCount / def.requirement);
+        progress = Math.min((jointCount / def.requirement) * 100, 100);
+        timesEarned = paperTimesEarned;
+        if (paperTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'dab':
+        const dabTimesEarned = Math.floor(dabCount / def.requirement);
+        progress = Math.min((dabCount / def.requirement) * 100, 100);
+        timesEarned = dabTimesEarned;
+        if (dabTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'munchies':
+        const munchiesTimesEarned = Math.floor(edibleCount / def.requirement);
+        progress = Math.min((edibleCount / def.requirement) * 100, 100);
+        timesEarned = munchiesTimesEarned;
+        if (munchiesTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'lore_master':
+        const loreTimesEarned = Math.floor(totalSessions / def.requirement);
+        progress = Math.min((totalSessions / def.requirement) * 100, 100);
+        timesEarned = loreTimesEarned;
+        if (loreTimesEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'iron_lungs':
+        progress = ironLungsEarned > 0 ? 100 : 0;
+        timesEarned = ironLungsEarned;
+        if (ironLungsEarned > 0) unlockedAt = Date.now();
+        break;
+
+      case 'clean_slate':
+        // Earned when reaching 7 days sober during t-break or recovery
+        if (isInTBreakOrRecovery) {
+          progress = Math.min((daysSoberForBadges / def.requirement) * 100, 100);
+          if (daysSoberForBadges >= def.requirement) {
+            unlockedAt = Date.now();
+            timesEarned = 1; // Active during current break
+          }
+        } else {
+          progress = 0;
+        }
+        break;
+
+      case 'lung_capacity':
+        // Lungs improving after 3+ days sober (during t-break or recovery)
+        if (isInTBreakOrRecovery) {
+          progress = Math.min((daysSoberForBadges / def.requirement) * 100, 100);
+          if (daysSoberForBadges >= def.requirement) {
+            unlockedAt = Date.now();
+            timesEarned = 1; // Active during current break
+          }
+        } else {
+          progress = 0;
+        }
+        break;
+
+      case 'rem':
+        // Sleep normalizing after 7+ days sober (during t-break or recovery)
+        if (isInTBreakOrRecovery) {
+          progress = Math.min((daysSoberForBadges / def.requirement) * 100, 100);
+          if (daysSoberForBadges >= def.requirement) {
+            unlockedAt = Date.now();
+            timesEarned = 1; // Active during current break
+          }
+        } else {
+          progress = 0;
+        }
+        break;
+
+      case 'clarity':
+        // Mental clarity returning after 30+ days sober (during t-break or recovery)
+        if (isInTBreakOrRecovery) {
+          progress = Math.min((daysSoberForBadges / def.requirement) * 100, 100);
+          if (daysSoberForBadges >= def.requirement) {
+            unlockedAt = Date.now();
+            timesEarned = 1; // Active during current break
+          }
+        } else {
+          progress = 0;
+        }
+        break;
+
+      case 'retired':
+        // Earned when entering recovery mode
+        const retiredCount = recoveryMode?.isRecoveryMode ? 1 : 0;
+        progress = retiredCount > 0 ? 100 : 0;
+        timesEarned = retiredCount;
+        if (retiredCount > 0) unlockedAt = Date.now();
+        break;
+
+      case 'weekend_warrior':
+        progress = weekendCount > 0 ? 100 : 0;
+        timesEarned = weekendCount;
+        if (weekendCount > 0) unlockedAt = Date.now();
+        break;
+
+      case 'uh_oh':
+        progress = hasExceededLimit ? 100 : 0;
+        if (hasExceededLimit) unlockedAt = Date.now();
         break;
 
       case 'night_owl':
@@ -274,8 +477,10 @@ export const calculateBadgeProgress = (sessions: Session[], tbreaks: TBreak[]): 
       case '1_oz':
       case 'quarter_pound':
       case '1_pound':
+        const volumeTimesEarned = Math.floor(totalAmount / def.requirement);
         progress = Math.min((totalAmount / def.requirement) * 100, 100);
-        if (totalAmount >= def.requirement) unlockedAt = Date.now();
+        timesEarned = volumeTimesEarned;
+        if (volumeTimesEarned > 0) unlockedAt = Date.now();
         break;
 
       case 'social_butterfly':

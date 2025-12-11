@@ -8,48 +8,69 @@ import {
   getActiveTBreak,
   completeTBreak as dbCompleteTBreak,
   getTBreaks,
+  deleteSession as dbDeleteSession,
+  markTBreakSlipUp as dbMarkTBreakSlipUp,
+  cancelTBreak as dbCancelTBreak,
 } from '../services/database';
-import { calculateBadgeProgress } from '../utils/badges';
-import { loadSettings, saveSettings, getShownBadges } from '../services/storage';
+import {
+  calculateBadgeProgress
+} from '../utils/badges';
+import {
+  loadSettings as storageLoadSettings,
+  saveSettings,
+  getShownBadges,
+  saveRecoveryMode,
+  loadRecoveryMode,
+} from '../services/storage';
 
 interface AppStore {
   // Sessions
   sessions: Session[];
   todayCount: number;
-  
+
   // Badges
   badges: Badge[];
   newlyUnlockedBadges: string[];
-  
+
   // T-Breaks
   activeTBreak: TBreak | null;
   tbreaks: TBreak[];
-  
+
   // Settings
   settings: UserSettings;
-  
+
   // Recovery Mode
   isRecoveryMode: boolean;
   sobrietyStartDate: number | null;
-  
+
   // Actions
   addSession: (session: Omit<Session, 'id'>) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
   loadSessions: () => Promise<void>;
   refreshStats: () => Promise<void>;
-  
+
   loadBadges: () => Promise<void>;
   clearUnlockedBadge: (badgeId: string) => void;
-  
+
   startTBreak: (goalDays: number) => Promise<void>;
   completeTBreak: () => Promise<void>;
   loadTBreaks: () => Promise<void>;
-  
+  markSlipUp: () => Promise<void>;
+  cancelTBreak: () => Promise<void>;
+
   loadSettings: () => Promise<void>;
   updateSettings: (settings: Partial<UserSettings>) => Promise<void>;
-  
-  enterRecoveryMode: () => void;
-  exitRecoveryMode: () => void;
+
+  loadRecoveryMode: () => Promise<void>;
+  enterRecoveryMode: () => Promise<void>;
+  exitRecoveryMode: () => Promise<void>;
 }
+
+const defaultSettings: UserSettings = {
+  notificationsEnabled: true,
+  theme: 'light',
+  currency: 'USD',
+};
 
 export const useAppStore = create<AppStore>((set, get) => ({
   // Initial State
@@ -59,10 +80,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   newlyUnlockedBadges: [],
   activeTBreak: null,
   tbreaks: [],
-  settings: {
-    notificationsEnabled: true,
-    theme: 'light',
-  },
+  settings: defaultSettings,
   isRecoveryMode: false,
   sobrietyStartDate: null,
 
@@ -72,10 +90,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       ...sessionData,
       id: Date.now().toString(),
     };
-    
+
     await dbAddSession(session);
-    
-    // Reload data
+
+    await get().loadSessions();
+    await get().refreshStats();
+    await get().loadBadges();
+  },
+
+  deleteSession: async (id: string) => {
+    await dbDeleteSession(id);
     await get().loadSessions();
     await get().refreshStats();
     await get().loadBadges();
@@ -93,26 +117,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // Badge Actions
   loadBadges: async () => {
-    const { sessions, tbreaks, badges: oldBadges } = get();
-    const newBadges = calculateBadgeProgress(sessions, tbreaks);
+    const {
+      sessions,
+      tbreaks,
+      badges: oldBadges,
+      settings,
+      isRecoveryMode,
+      sobrietyStartDate,
+    } = get();
 
-    // Get badges that have already been shown to the user
+    const newBadges = calculateBadgeProgress(
+      sessions,
+      tbreaks,
+      settings,
+      { isRecoveryMode, sobrietyStartDate },
+    );
+
     const shownBadges = await getShownBadges();
 
-    // Find newly unlocked badges that haven't been shown yet
     const newlyUnlocked = newBadges
-      .filter(badge => {
-        // Badge must be unlocked
+      .filter((badge) => {
         if (!badge.unlockedAt) return false;
-
-        // Badge must not have been shown before
         if (shownBadges.has(badge.id)) return false;
 
-        // Badge must be newly unlocked (wasn't unlocked in oldBadges)
-        const wasUnlockedBefore = oldBadges.find(old => old.id === badge.id && old.unlockedAt);
+        const wasUnlockedBefore = oldBadges.find(
+          (old) => old.id === badge.id && old.unlockedAt,
+        );
         return !wasUnlockedBefore;
       })
-      .map(badge => badge.id);
+      .map((badge) => badge.id);
 
     set({
       badges: newBadges,
@@ -122,7 +155,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearUnlockedBadge: (badgeId: string) => {
     set({
-      newlyUnlockedBadges: get().newlyUnlockedBadges.filter(id => id !== badgeId),
+      newlyUnlockedBadges: get().newlyUnlockedBadges.filter(
+        (id) => id !== badgeId,
+      ),
     });
   },
 
@@ -134,7 +169,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       goalDays,
       completed: false,
     };
-    
+
     await addTBreak(tbreak);
     set({ activeTBreak: tbreak });
     await get().loadTBreaks();
@@ -145,12 +180,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!activeTBreak) return;
 
     await dbCompleteTBreak(activeTBreak.id);
-    
-    // Update local state
+
     await get().loadTBreaks();
     set({ activeTBreak: null });
-    
-    // Reload badges
     await get().loadBadges();
   },
 
@@ -160,31 +192,75 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ tbreaks, activeTBreak });
   },
 
+  markSlipUp: async () => {
+    const { activeTBreak } = get();
+    if (!activeTBreak) return;
+
+    await dbMarkTBreakSlipUp(activeTBreak.id);
+    await get().loadTBreaks();
+  },
+
+  cancelTBreak: async () => {
+    const { activeTBreak } = get();
+    if (!activeTBreak) return;
+
+    await dbCancelTBreak(activeTBreak.id);
+    set({ activeTBreak: null });
+    await get().loadTBreaks();
+  },
+
   // Settings Actions
   loadSettings: async () => {
-    const settings = await loadSettings();
-    set({ settings });
+    const loaded = await storageLoadSettings();
+
+    // Merge with defaults so old installs get a currency + core fields
+    const merged: UserSettings = {
+      ...defaultSettings,
+      ...(loaded || {}),
+    };
+
+    set({ settings: merged });
   },
 
   updateSettings: async (newSettings) => {
     const currentSettings = get().settings;
-    const updatedSettings = { ...currentSettings, ...newSettings };
+    const updatedSettings: UserSettings = {
+      ...defaultSettings,
+      ...currentSettings,
+      ...newSettings,
+    };
     await saveSettings(updatedSettings);
     set({ settings: updatedSettings });
   },
 
   // Recovery Mode
-  enterRecoveryMode: () => {
+  loadRecoveryMode: async () => {
+    const recoveryData = await loadRecoveryMode();
     set({
-      isRecoveryMode: true,
-      sobrietyStartDate: Date.now(),
+      isRecoveryMode: recoveryData.isRecoveryMode,
+      sobrietyStartDate: recoveryData.sobrietyStartDate,
     });
   },
 
-  exitRecoveryMode: () => {
+  enterRecoveryMode: async () => {
+    const startDate = Date.now();
+
+    set({
+      isRecoveryMode: true,
+      sobrietyStartDate: startDate,
+    });
+
+    await saveRecoveryMode(true, startDate);
+    await get().loadBadges();
+  },
+
+  exitRecoveryMode: async () => {
     set({
       isRecoveryMode: false,
       sobrietyStartDate: null,
     });
+
+    await saveRecoveryMode(false, null);
+    await get().loadBadges();
   },
 }));

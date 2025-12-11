@@ -17,7 +17,8 @@ export const initDatabase = () => {
         amount REAL,
         cost REAL,
         social INTEGER,
-        notes TEXT
+        notes TEXT,
+        mood TEXT
       );
     `);
     console.log('✅ Sessions table created');
@@ -29,10 +30,37 @@ export const initDatabase = () => {
         startDate INTEGER NOT NULL,
         goalDays INTEGER NOT NULL,
         completed INTEGER DEFAULT 0,
-        endDate INTEGER
+        endDate INTEGER,
+        hadSlipUp INTEGER DEFAULT 0,
+        slipUpDate INTEGER
       );
     `);
     console.log('✅ T-Breaks table created');
+
+    // Migration: Add missing columns if they don't exist
+    try {
+      // Try to add mood column to sessions if it doesn't exist
+      db.execSync(`ALTER TABLE sessions ADD COLUMN mood TEXT;`);
+      console.log('✅ Added mood column to sessions');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      // Try to add hadSlipUp column to tbreaks if it doesn't exist
+      db.execSync(`ALTER TABLE tbreaks ADD COLUMN hadSlipUp INTEGER DEFAULT 0;`);
+      console.log('✅ Added hadSlipUp column to tbreaks');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      // Try to add slipUpDate column to tbreaks if it doesn't exist
+      db.execSync(`ALTER TABLE tbreaks ADD COLUMN slipUpDate INTEGER;`);
+      console.log('✅ Added slipUpDate column to tbreaks');
+    } catch (e) {
+      // Column already exists, ignore
+    }
   } catch (error) {
     console.error('❌ Error creating tables:', error);
   }
@@ -53,8 +81,8 @@ export const resetDatabase = () => {
 // Session Operations
 export const addSession = (session: Session): void => {
   db.runSync(
-    `INSERT INTO sessions (id, timestamp, method, strain, amount, cost, social, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (id, timestamp, method, strain, amount, cost, social, notes, mood)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       session.id,
       session.timestamp,
@@ -64,6 +92,7 @@ export const addSession = (session: Session): void => {
       session.cost || null,
       session.social ? 1 : 0,
       session.notes || null,
+      session.mood || null,
     ]
   );
 };
@@ -85,6 +114,7 @@ export const getSessions = (limit?: number): Session[] => {
     cost: row.cost || undefined,
     social: row.social === 1 ? true : undefined,
     notes: row.notes || undefined,
+    mood: row.mood || undefined,
   }));
 };
 
@@ -103,6 +133,7 @@ export const getSessionsByDateRange = (startDate: number, endDate: number): Sess
     cost: row.cost || undefined,
     social: row.social === 1 ? true : undefined,
     notes: row.notes || undefined,
+    mood: row.mood || undefined,
   }));
 };
 
@@ -113,14 +144,16 @@ export const deleteSession = (id: string): void => {
 // T-Break Operations
 export const addTBreak = (tbreak: TBreak): void => {
   db.runSync(
-    `INSERT INTO tbreaks (id, startDate, goalDays, completed, endDate)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO tbreaks (id, startDate, goalDays, completed, endDate, hadSlipUp, slipUpDate)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       tbreak.id,
       tbreak.startDate,
       tbreak.goalDays,
       tbreak.completed ? 1 : 0,
       tbreak.endDate || null,
+      tbreak.hadSlipUp ? 1 : 0,
+      tbreak.slipUpDate || null,
     ]
   );
 };
@@ -129,13 +162,15 @@ export const getTBreaks = (): TBreak[] => {
   const result = db.getAllSync(
     `SELECT * FROM tbreaks ORDER BY startDate DESC`
   );
-  
+
   return result.map((row: any) => ({
     id: row.id,
     startDate: row.startDate,
     goalDays: row.goalDays,
     completed: row.completed === 1,
     endDate: row.endDate || undefined,
+    hadSlipUp: row.hadSlipUp === 1,
+    slipUpDate: row.slipUpDate || undefined,
   }));
 };
 
@@ -143,16 +178,30 @@ export const getActiveTBreak = (): TBreak | null => {
   const result: any = db.getFirstSync(
     `SELECT * FROM tbreaks WHERE completed = 0 ORDER BY startDate DESC LIMIT 1`
   );
-  
+
   if (!result) return null;
-  
+
   return {
     id: result.id,
     startDate: result.startDate,
     goalDays: result.goalDays,
     completed: false,
     endDate: result.endDate || undefined,
+    hadSlipUp: result.hadSlipUp === 1,
+    slipUpDate: result.slipUpDate || undefined,
   };
+};
+
+export const markTBreakSlipUp = (id: string): void => {
+  const now = Date.now();
+  db.runSync(
+    `UPDATE tbreaks SET hadSlipUp = 1, slipUpDate = ? WHERE id = ?`,
+    [now, id]
+  );
+};
+
+export const cancelTBreak = (id: string): void => {
+  db.runSync(`DELETE FROM tbreaks WHERE id = ?`, [id]);
 };
 
 export const completeTBreak = (id: string): void => {

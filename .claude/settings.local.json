@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout /t 15 /nobreak)"
+      "Bash(timeout /t 15 /nobreak)",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo start:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

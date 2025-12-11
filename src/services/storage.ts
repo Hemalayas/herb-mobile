@@ -4,6 +4,7 @@ import { UserSettings } from '../types';
 const SETTINGS_KEY = '@herb_user_settings';
 const ONBOARDING_KEY = '@herb_onboarding_complete';
 const SHOWN_BADGES_KEY = '@herb_shown_badges';
+const RECOVERY_MODE_KEY = '@herb_recovery_mode';
 
 // Settings
 export const saveSettings = async (settings: UserSettings): Promise<void> => {
@@ -71,6 +72,37 @@ export const markBadgeAsShown = async (badgeId: string): Promise<void> => {
     await AsyncStorage.setItem(SHOWN_BADGES_KEY, JSON.stringify(Array.from(shownBadges)));
   } catch (error) {
     console.error('Error marking badge as shown:', error);
+  }
+};
+
+// Recovery Mode State
+export const saveRecoveryMode = async (isRecoveryMode: boolean, sobrietyStartDate: number | null): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(RECOVERY_MODE_KEY, JSON.stringify({
+      isRecoveryMode,
+      sobrietyStartDate,
+    }));
+  } catch (error) {
+    console.error('Error saving recovery mode:', error);
+  }
+};
+
+export const loadRecoveryMode = async (): Promise<{ isRecoveryMode: boolean; sobrietyStartDate: number | null }> => {
+  try {
+    const data = await AsyncStorage.getItem(RECOVERY_MODE_KEY);
+    if (!data) {
+      return {
+        isRecoveryMode: false,
+        sobrietyStartDate: null,
+      };
+    }
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading recovery mode:', error);
+    return {
+      isRecoveryMode: false,
+      sobrietyStartDate: null,
+    };
   }
 };
 

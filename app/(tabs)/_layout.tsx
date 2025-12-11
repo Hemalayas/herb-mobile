@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Image } from 'react-native';
 import { useTheme } from '../../src/context/ThemeContext';
 
 export default function TabLayout() {
@@ -14,6 +14,7 @@ export default function TabLayout() {
           borderTopColor: theme.border,
           borderTopWidth: 1,
         },
+        // These tint colors now only apply to the text labels below the icons
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textSecondary,
       }}
@@ -22,35 +23,81 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🏠</Text>,
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../../assets/home.png')}
+              style={{
+                width: 40,
+                height: 40,
+                // No tintColor here, so the original image colors show
+                opacity: focused ? 1 : 0.5, 
+              }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: 'Stats',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📊</Text>,
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../../assets/stats.png')}
+              style={{
+                width: 40,
+                height: 40,
+                opacity: focused ? 1 : 0.5,
+              }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="badges"
         options={{
           title: 'Badges',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🏆</Text>,
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../../assets/badges.png')}
+              style={{
+                width: 40,
+                height: 40,
+                opacity: focused ? 1 : 0.5,
+              }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="recovery"
         options={{
           title: 'Recovery',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>💚</Text>,
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../../assets/recovery.png')}
+              style={{
+                width: 40,
+                height: 40,
+                opacity: focused ? 1 : 0.5,
+              }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>⚙️</Text>,
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../../assets/settings.png')}
+              style={{
+                width: 40,
+                height: 40,
+                opacity: focused ? 1 : 0.5,
+              }}
+            />
+          ),
         }}
       />
     </Tabs>

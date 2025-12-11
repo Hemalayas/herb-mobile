@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { useAppStore } from '../../src/store/appStore';
 import { useEffect, useState } from 'react';
 import { BADGE_DEFINITIONS, getBadgeImage } from '../../src/utils/badges';
@@ -41,14 +42,24 @@ export default function BadgesScreen() {
   const totalCount = badges.length;
 
   return (
-    <View style={[styles.mainContainer, { backgroundColor: theme.background }]}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>🏆 Badges</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {unlockedCount} / {totalCount} unlocked
-          </Text>
+  <View style={[styles.mainContainer, { backgroundColor: theme.background }]}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
+      <View style={styles.header}>
+        
+        {/* Container for Icon + Title */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+          <Image 
+            source={require('../../assets/badges.png')} 
+            style={{ width: 60, height: 60, marginRight: 1 }} 
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: theme.text }]}>Badges</Text>
         </View>
+
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          {unlockedCount} / {totalCount} unlocked
+        </Text>
+      </View>
 
         <View style={[styles.progressCard, { backgroundColor: theme.card }]}>
           <View style={[styles.progressBarBackground, { backgroundColor: theme.border }]}>
@@ -183,11 +194,11 @@ export default function BadgesScreen() {
             </TouchableOpacity>
 
             <View style={styles.detailImageContainer}>
-              <Image 
-                source={getBadgeImage(selectedBadge.id)} 
+              <Image
+                source={getBadgeImage(selectedBadge.id)}
                 style={[
                   styles.detailImage,
-                  !selectedBadge.unlockedAt && { opacity: 0.5, tintColor: '#888' }
+                  !selectedBadge.unlockedAt && { opacity: 0.3 }
                 ]}
                 resizeMode="contain"
               />
@@ -340,8 +351,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   badgeImageLocked: {
-    opacity: 0.25,
-    tintColor: '#9CA3AF',
+    opacity: 0.15,
   },
   badgeCheckmark: {
     position: 'absolute',

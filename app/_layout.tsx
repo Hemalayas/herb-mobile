@@ -11,9 +11,11 @@ export default function RootLayout() {
     const setup = async () => {
       initDatabase();
       await useAppStore.getState().loadSettings();
+      await useAppStore.getState().loadRecoveryMode();
       await useAppStore.getState().loadSessions();
       await useAppStore.getState().loadTBreaks();
       await useAppStore.getState().refreshStats();
+      await useAppStore.getState().loadBadges();
     };
     setup();
   }, []);
