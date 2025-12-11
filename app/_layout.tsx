@@ -16,6 +16,7 @@ export default function RootLayout() {
       await useAppStore.getState().loadRecoveryMode();
       await useAppStore.getState().loadSessions();
       await useAppStore.getState().loadTBreaks();
+      await useAppStore.getState().loadMoodEntries(); // Load mood tracking data
       await useAppStore.getState().refreshStats();
       await useAppStore.getState().loadBadges();
     };
