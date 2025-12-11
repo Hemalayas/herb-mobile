@@ -1,13 +1,19 @@
 import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Image } from 'react-native';
 import { useAppStore } from '../../src/store/appStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme } from '../../src/context/ThemeContext';
+import { hasHerbPro } from '../../src/services/revenueCat';
+import PaywallModal from '../../src/components/PaywallModal';
+import CustomerCenter from '../../src/components/CustomerCenter';
 
 export default function SettingsScreen() {
   const theme = useTheme();
   const { settings, updateSettings, loadSettings } = useAppStore();
+  const [isPro, setIsPro] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [showCustomerCenter, setShowCustomerCenter] = useState(false);
 
-    const currencySymbolMap: Record<string, string> = {
+  const currencySymbolMap: Record<string, string> = {
     ZAR: 'R',
     USD: '$',
     EUR: '€',
@@ -17,10 +23,15 @@ export default function SettingsScreen() {
   const currencySymbol =
     currencySymbolMap[settings.currency || 'USD'] || '$';
 
-
   useEffect(() => {
     loadSettings();
+    checkProStatus();
   }, []);
+
+  const checkProStatus = async () => {
+    const hasPro = await hasHerbPro();
+    setIsPro(hasPro);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -229,6 +240,61 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Subscription */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Subscription</Text>
+
+        {isPro ? (
+          <>
+            {/* Pro Status Badge */}
+            <View style={[styles.settingRow, { backgroundColor: theme.card }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.text }]}>
+                  ⭐ Herb Pro
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+                  You have access to all premium features
+                </Text>
+              </View>
+              <View style={[styles.proBadge, { backgroundColor: theme.primary + '20' }]}>
+                <Text style={[styles.proBadgeText, { color: theme.primary }]}>ACTIVE</Text>
+              </View>
+            </View>
+
+            {/* Manage Subscription */}
+            <TouchableOpacity
+              style={[styles.settingRow, { backgroundColor: theme.card }]}
+              onPress={() => setShowCustomerCenter(true)}
+            >
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.text }]}>
+                  ⚙️ Manage Subscription
+                </Text>
+                <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+                  View details, change plan, or cancel
+                </Text>
+              </View>
+              <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={[styles.settingRow, { backgroundColor: theme.card }]}
+            onPress={() => setShowPaywall(true)}
+          >
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: theme.text }]}>
+                🚀 Upgrade to Herb Pro
+              </Text>
+              <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+                Unlock premium features and advanced analytics
+              </Text>
+            </View>
+            <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
@@ -240,6 +306,20 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Modals */}
+      <PaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onPurchaseComplete={() => {
+          setShowPaywall(false);
+          checkProStatus();
+        }}
+      />
+      <CustomerCenter
+        visible={showCustomerCenter}
+        onClose={() => setShowCustomerCenter(false)}
+      />
     </View>
   );
 }
@@ -311,5 +391,15 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  proBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  proBadgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
 });
