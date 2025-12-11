@@ -57,29 +57,7 @@ export default function StatsScreen() {
     loadSessions();
   }, []);
 
-  const currencySymbol = getCurrencySymbol((settings as any).defaultCurrency);
-
-  // 🔁 Currency conversion helper
-  // Expects settings.baseCurrency (e.g. 'ZAR') and settings.currencyRates or exchangeRates
-  // like { ZAR: 1, USD: 0.053, EUR: 0.049, GBP: 0.041 }.
-  // If no config is present, we just return the raw amount.
-  const convertAmount = (amount: number): number => {
-    const s = settings as any;
-    const target = s.defaultCurrency || 'USD';
-    const base = s.baseCurrency || 'ZAR';
-    const rates = s.currencyRates || s.exchangeRates || {};
-
-    if (!rates || !rates[base] || !rates[target]) {
-      return amount;
-    }
-    if (base === target) return amount;
-
-    const baseRate = rates[base] || 1;
-    const targetRate = rates[target];
-
-    // Normalise to base, then to target
-    return (amount / baseRate) * targetRate;
-  };
+  const currencySymbol = getCurrencySymbol(settings.currency);
 
   // Filter sessions based on selected time period
   const filteredSessions = useMemo(() => {
@@ -220,8 +198,6 @@ export default function StatsScreen() {
     [filteredSessions],
   );
 
-  const totalSpendingDisplay = convertAmount(totalSpending);
-
   const spendingOverTime = useMemo(() => {
     if (filteredSessions.length === 0) return [];
 
@@ -252,12 +228,12 @@ export default function StatsScreen() {
 
     return Object.entries(groupedData)
       .map(([label, value]) => ({
-        value: convertAmount(value),
+        value,
         label,
         frontColor: '#F59E0B',
       }))
       .slice(-10);
-  }, [filteredSessions, timeFilter, settings]);
+  }, [filteredSessions, timeFilter]);
 
   // Amount + strains
   const totalAmount = useMemo(
@@ -394,8 +370,6 @@ export default function StatsScreen() {
     return totalCost / sessionsWithCost.length;
   }, [settings, sessions]);
 
-  const averageSessionCostDisplay =
-    averageSessionCost > 0 ? convertAmount(averageSessionCost) : 0;
 
   // 💸 Lifetime spend (estimated, all sessions, base)
   const lifetimeSpend = useMemo(() => {
@@ -469,27 +443,26 @@ export default function StatsScreen() {
   }, [isRecoveryMode, sobrietyStartDate, avgSessionsPerDay, averageSessionCost]);
 
   const lifetimeSavings = lifetimeTBreakSavings + recoverySavings;
-  const lifetimeSavingsDisplay = convertAmount(lifetimeSavings);
 
-  // 📊 Savings chart (T-Breaks vs Recovery) – converted values
+  // 📊 Savings chart (T-Breaks vs Recovery)
   const savingsChartData = useMemo(() => {
     const data: { label: string; value: number; frontColor: string }[] = [];
     if (lifetimeTBreakSavings > 0) {
       data.push({
         label: 'T-Breaks',
-        value: convertAmount(lifetimeTBreakSavings),
+        value: lifetimeTBreakSavings,
         frontColor: '#3B82F6',
       });
     }
     if (recoverySavings > 0) {
       data.push({
         label: 'Recovery',
-        value: convertAmount(recoverySavings),
+        value: recoverySavings,
         frontColor: '#22C55E',
       });
     }
     return data;
-  }, [lifetimeTBreakSavings, recoverySavings, settings]);
+  }, [lifetimeTBreakSavings, recoverySavings]);
 
   const hasSavingsData = savingsChartData.length > 0;
 
@@ -560,9 +533,9 @@ export default function StatsScreen() {
 
   // MAIN UI
   const costSessionsCount = filteredSessions.filter(s => s.cost).length;
-  const avgCostForPeriodDisplay =
+  const avgCostForPeriod =
     costSessionsCount > 0
-      ? convertAmount(totalSpending) / costSessionsCount
+      ? totalSpending / costSessionsCount
       : 0;
 
   return (
@@ -642,7 +615,7 @@ export default function StatsScreen() {
           </View>
           <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Spent</Text>
           <Text style={[styles.statNumber, { color: '#F59E0B' }]}>
-            {currencySymbol}{totalSpendingDisplay.toFixed(0)}
+            {currencySymbol}{totalSpending.toFixed(0)}
           </Text>
         </View>
 
@@ -897,7 +870,7 @@ export default function StatsScreen() {
                   Lifetime saved
                 </Text>
                 <Text style={[styles.moneyValue, { color: '#22C55E' }]}>
-                  {currencySymbol}{lifetimeSavingsDisplay.toFixed(0)}
+                  {currencySymbol}{lifetimeSavings.toFixed(0)}
                 </Text>
               </View>
               <View style={styles.moneyItem}>
@@ -905,8 +878,8 @@ export default function StatsScreen() {
                   Avg cost / session
                 </Text>
                 <Text style={[styles.moneyValue, { color: theme.text }]}>
-                  {averageSessionCostDisplay > 0
-                    ? `${currencySymbol}${averageSessionCostDisplay.toFixed(2)}`
+                  {averageSessionCost > 0
+                    ? `${currencySymbol}${averageSessionCost.toFixed(2)}`
                     : '—'}
                 </Text>
               </View>
@@ -1146,7 +1119,7 @@ export default function StatsScreen() {
           </Text>
           <Text style={[styles.insightValue, { color: theme.primary }]}>
             {currencySymbol}
-            {avgCostForPeriodDisplay.toFixed(2)}
+            {avgCostForPeriod.toFixed(2)}
           </Text>
         </View>
 
