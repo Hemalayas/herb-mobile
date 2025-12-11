@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { Session, TBreak } from '../types';
+import { Session, TBreak, MoodEntry } from '../types';
 
 // Open/create database
 const db = SQLite.openDatabaseSync('herb.db');
@@ -36,6 +36,21 @@ export const initDatabase = () => {
       );
     `);
     console.log('✅ T-Breaks table created');
+
+    // Mood Entries table (independent mood tracking)
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS mood_entries (
+        id TEXT PRIMARY KEY,
+        timestamp INTEGER NOT NULL,
+        mood TEXT NOT NULL,
+        intensity INTEGER,
+        note TEXT,
+        hasCraving INTEGER DEFAULT 0,
+        cravingIntensity TEXT,
+        triggers TEXT
+      );
+    `);
+    console.log('✅ Mood entries table created');
 
     // Migration: Add missing columns if they don't exist
     try {
@@ -210,6 +225,73 @@ export const completeTBreak = (id: string): void => {
     `UPDATE tbreaks SET completed = 1, endDate = ? WHERE id = ?`,
     [now, id]
   );
+};
+
+// Mood Entry Operations
+export const addMoodEntry = (entry: MoodEntry): void => {
+  db.runSync(
+    `INSERT INTO mood_entries (id, timestamp, mood, intensity, note, hasCraving, cravingIntensity, triggers)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entry.id,
+      entry.timestamp,
+      entry.mood,
+      entry.intensity || null,
+      entry.note || null,
+      entry.hasCraving ? 1 : 0,
+      entry.cravingIntensity || null,
+      entry.triggers ? JSON.stringify(entry.triggers) : null,
+    ]
+  );
+};
+
+export const getMoodEntries = (limit?: number): MoodEntry[] => {
+  const query = limit
+    ? `SELECT * FROM mood_entries ORDER BY timestamp DESC LIMIT ${limit}`
+    : `SELECT * FROM mood_entries ORDER BY timestamp DESC`;
+
+  const result: any = db.getAllSync(query);
+
+  return result.map((row: any) => ({
+    id: row.id,
+    timestamp: row.timestamp,
+    mood: row.mood,
+    intensity: row.intensity || undefined,
+    note: row.note || undefined,
+    hasCraving: row.hasCraving === 1,
+    cravingIntensity: row.cravingIntensity || undefined,
+    triggers: row.triggers ? JSON.parse(row.triggers) : undefined,
+  }));
+};
+
+export const getMoodEntriesByDateRange = (startDate: number, endDate: number): MoodEntry[] => {
+  const result: any = db.getAllSync(
+    `SELECT * FROM mood_entries WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC`,
+    [startDate, endDate]
+  );
+
+  return result.map((row: any) => ({
+    id: row.id,
+    timestamp: row.timestamp,
+    mood: row.mood,
+    intensity: row.intensity || undefined,
+    note: row.note || undefined,
+    hasCraving: row.hasCraving === 1,
+    cravingIntensity: row.cravingIntensity || undefined,
+    triggers: row.triggers ? JSON.parse(row.triggers) : undefined,
+  }));
+};
+
+export const deleteMoodEntry = (id: string): void => {
+  db.runSync(`DELETE FROM mood_entries WHERE id = ?`, [id]);
+};
+
+export const getTodaysMoodEntries = (): MoodEntry[] => {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const endOfDay = startOfDay + 24 * 60 * 60 * 1000;
+
+  return getMoodEntriesByDateRange(startOfDay, endOfDay);
 };
 
 // Stats

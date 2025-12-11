@@ -18,6 +18,7 @@ import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
 import { initDatabase /*, resetDatabase */ } from '../../src/services/database';
 import type { ConsumptionMethod, Mood } from '../../src/types';
+import MoodTracker from '../../src/components/MoodTracker';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -620,6 +621,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Mood Tracker Widget */}
+        <MoodTracker />
+
         <View style={styles.breakActions}>
           <TouchableOpacity
             style={[styles.slipUpButton, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}
@@ -857,6 +861,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Mood Tracker Widget */}
+        <MoodTracker />
+
         <View style={styles.breakActions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#EF4444' }]}
@@ -979,6 +986,9 @@ export default function HomeScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Mood Tracker Widget */}
+      <MoodTracker />
 
       <View style={styles.sessionImageContainer}>
         <View style={styles.sessionContent}>

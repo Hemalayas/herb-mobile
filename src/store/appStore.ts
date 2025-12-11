@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Session, Badge, TBreak, UserSettings } from '../types';
+import { Session, Badge, TBreak, UserSettings, MoodEntry } from '../types';
 import {
   addSession as dbAddSession,
   getSessions,
@@ -11,6 +11,10 @@ import {
   deleteSession as dbDeleteSession,
   markTBreakSlipUp as dbMarkTBreakSlipUp,
   cancelTBreak as dbCancelTBreak,
+  addMoodEntry as dbAddMoodEntry,
+  getMoodEntries,
+  deleteMoodEntry as dbDeleteMoodEntry,
+  getTodaysMoodEntries,
 } from '../services/database';
 import {
   calculateBadgeProgress
@@ -43,6 +47,10 @@ interface AppStore {
   isRecoveryMode: boolean;
   sobrietyStartDate: number | null;
 
+  // Mood Tracking
+  moodEntries: MoodEntry[];
+  todaysMoodCount: number;
+
   // Actions
   addSession: (session: Omit<Session, 'id'>) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -64,6 +72,11 @@ interface AppStore {
   loadRecoveryMode: () => Promise<void>;
   enterRecoveryMode: () => Promise<void>;
   exitRecoveryMode: () => Promise<void>;
+
+  // Mood Actions
+  addMoodEntry: (entry: Omit<MoodEntry, 'id' | 'timestamp'>) => Promise<void>;
+  loadMoodEntries: () => Promise<void>;
+  deleteMoodEntry: (id: string) => Promise<void>;
 }
 
 const defaultSettings: UserSettings = {
@@ -78,6 +91,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   todayCount: 0,
   badges: [],
   newlyUnlockedBadges: [],
+  moodEntries: [],
+  todaysMoodCount: 0,
   activeTBreak: null,
   tbreaks: [],
   settings: defaultSettings,
@@ -262,5 +277,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     await saveRecoveryMode(false, null);
     await get().loadBadges();
+  },
+
+  // Mood Tracking Actions
+  addMoodEntry: async (entry) => {
+    const newEntry: MoodEntry = {
+      ...entry,
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+    };
+
+    dbAddMoodEntry(newEntry);
+
+    // Reload mood entries to update state
+    await get().loadMoodEntries();
+  },
+
+  loadMoodEntries: async () => {
+    const entries = getMoodEntries();
+    const todaysEntries = getTodaysMoodEntries();
+
+    set({
+      moodEntries: entries,
+      todaysMoodCount: todaysEntries.length,
+    });
+  },
+
+  deleteMoodEntry: async (id: string) => {
+    dbDeleteMoodEntry(id);
+    await get().loadMoodEntries();
   },
 }));
