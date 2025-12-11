@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Image, ScrollView } from 'react-native';
 import { useAppStore } from '../../src/store/appStore';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -35,6 +35,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         {/* Container to align Icon and Text side-by-side */}
         <View
@@ -320,6 +321,7 @@ export default function SettingsScreen() {
         visible={showCustomerCenter}
         onClose={() => setShowCustomerCenter(false)}
       />
+      </ScrollView>
     </View>
   );
 }

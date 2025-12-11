@@ -618,11 +618,10 @@ export default function HomeScreen() {
             >
               <Text style={[styles.messageText, { color: theme.text }]}>{message}</Text>
             </View>
+            {/* Mood Tracker Widget */}
+            <MoodTracker />
           </View>
         </View>
-
-        {/* Mood Tracker Widget */}
-        <MoodTracker />
 
         <View style={styles.breakActions}>
           <TouchableOpacity
@@ -858,11 +857,10 @@ export default function HomeScreen() {
             >
               <Text style={[styles.messageText, { color: theme.text }]}>{message}</Text>
             </View>
+            {/* Mood Tracker Widget */}
+            <MoodTracker />
           </View>
         </View>
-
-        {/* Mood Tracker Widget */}
-        <MoodTracker />
 
         <View style={styles.breakActions}>
           <TouchableOpacity
@@ -987,9 +985,6 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      {/* Mood Tracker Widget */}
-      <MoodTracker />
-
       <View style={styles.sessionImageContainer}>
         <View style={styles.sessionContent}>
           <Image
@@ -1008,6 +1003,8 @@ export default function HomeScreen() {
           >
             <Text style={[styles.messageText, { color: theme.text }]}>{currentMessage}</Text>
           </View>
+          {/* Mood Tracker Widget */}
+          <MoodTracker />
         </View>
       </View>
 
