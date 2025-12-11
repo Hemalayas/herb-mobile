@@ -8,7 +8,6 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
 import { PieChart, BarChart, LineChart } from 'react-native-gifted-charts';
@@ -747,10 +746,10 @@ export default function StatsScreen() {
           <View style={styles.headerRow}>
             <Image
               source={require('../../assets/stats.png')}
-              style={styles.headerIcon}
+              style={{ width: 60, height: 60, marginRight: 1 }}
               resizeMode="contain"
             />
-            <Text style={[styles.title, { color: theme.text }]}>Your Stats</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Stats</Text>
           </View>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Track your progress over time
@@ -788,28 +787,19 @@ export default function StatsScreen() {
       contentContainerStyle={{ paddingBottom: 32 }}
     >
       {/* HEADER */}
-      <LinearGradient
-        colors={[theme.primary + '15', 'transparent']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <View style={[styles.headerIconContainer, { backgroundColor: theme.primary + '20' }]}>
-              <Image
-                source={require('../../assets/stats.png')}
-                style={styles.headerIconLarge}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: theme.text }]}>Your Stats 📊</Text>
-              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-                Track your journey & insights
-              </Text>
-            </View>
-          </View>
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Image
+            source={require('../../assets/stats.png')}
+            style={{ width: 60, height: 60, marginRight: 1 }}
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: theme.text }]}>Stats</Text>
         </View>
-      </LinearGradient>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          Track your progress over time
+        </Text>
+      </View>
 
       {/* TAB SWITCHER */}
       <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
@@ -1616,47 +1606,25 @@ const styles = StyleSheet.create({
   },
 
   // HEADER
-  headerGradient: {
-    paddingBottom: 16,
-  },
   header: {
+    alignItems: 'center',
+    marginTop: 60,
+    marginBottom: 30,
     paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 12,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-  },
-  headerIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  headerIcon: {
-    width: 32,
-    height: 32,
-  },
-  headerIconLarge: {
-    width: 40,
-    height: 40,
+    marginBottom: 10,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    fontSize: 32,
+    fontWeight: 'bold',
   },
   subtitle: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 16,
+    marginTop: 4,
   },
 
   // FILTER
