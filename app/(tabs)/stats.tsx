@@ -11,10 +11,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
-import { PieChart, BarChart } from 'react-native-gifted-charts';
+import { PieChart, BarChart, LineChart } from 'react-native-gifted-charts';
 import { format, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
 
 type TimeFilter = 'week' | 'month' | 'year' | 'lifetime';
+type TabType = 'usage' | 'mood';
 
 const screenWidth = Dimensions.get('window').width;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,12 +50,16 @@ export default function StatsScreen() {
     sobrietyStartDate,
     tbreaks,
     settings,
+    moodEntries,
+    loadMoodEntries,
   } = useAppStore();
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('week');
+  const [activeTab, setActiveTab] = useState<TabType>('usage');
 
   useEffect(() => {
     loadSessions();
+    loadMoodEntries();
   }, []);
 
   const currencySymbol = getCurrencySymbol(settings.currency);
@@ -80,6 +85,28 @@ export default function StatsScreen() {
 
     return sessions.filter(s => s.timestamp >= startDate);
   }, [sessions, timeFilter]);
+
+  // Filter mood entries based on selected time period
+  const filteredMoodEntries = useMemo(() => {
+    const now = new Date();
+    let startDate: number;
+
+    switch (timeFilter) {
+      case 'week':
+        startDate = startOfWeek(now).getTime();
+        break;
+      case 'month':
+        startDate = startOfMonth(now).getTime();
+        break;
+      case 'year':
+        startDate = startOfYear(now).getTime();
+        break;
+      case 'lifetime':
+        return moodEntries;
+    }
+
+    return moodEntries.filter(m => m.timestamp >= startDate);
+  }, [moodEntries, timeFilter]);
 
   // Solo vs social
   const socialStats = useMemo(() => {
@@ -278,6 +305,194 @@ export default function StatsScreen() {
       };
     });
   }, [filteredSessions]);
+
+  // ========== MOOD & FEELINGS ANALYTICS ==========
+
+  // 1. Mood Timeline (Line Chart Data)
+  const moodTimeline = useMemo(() => {
+    if (filteredMoodEntries.length === 0) return [];
+
+    const moodValues: Record<string, number> = {
+      happy: 5,
+      calm: 4,
+      neutral: 3,
+      anxious: 2,
+      stressed: 1,
+      sad: 0,
+    };
+
+    const sortedEntries = [...filteredMoodEntries].sort((a, b) => a.timestamp - b.timestamp);
+
+    return sortedEntries.map(entry => ({
+      value: moodValues[entry.mood] || 3,
+      label: format(new Date(entry.timestamp), timeFilter === 'week' ? 'EEE' : 'MMM d'),
+      dataPointText: entry.mood,
+    })).slice(-20); // Show last 20 points
+  }, [filteredMoodEntries, timeFilter]);
+
+  // 2. Mood Distribution (Pie Chart Data)
+  const moodDistribution = useMemo(() => {
+    if (filteredMoodEntries.length === 0) return [];
+
+    const moodCounts: Record<string, number> = {};
+    filteredMoodEntries.forEach(entry => {
+      moodCounts[entry.mood] = (moodCounts[entry.mood] || 0) + 1;
+    });
+
+    const moodColors: Record<string, string> = {
+      happy: '#22C55E',
+      calm: '#0EA5E9',
+      neutral: '#6B7280',
+      anxious: '#F59E0B',
+      stressed: '#EF4444',
+      sad: '#8B5CF6',
+    };
+
+    const moodEmojis: Record<string, string> = {
+      happy: '😊',
+      calm: '😌',
+      neutral: '😐',
+      anxious: '😰',
+      stressed: '😤',
+      sad: '😢',
+    };
+
+    return Object.entries(moodCounts).map(([mood, count]) => ({
+      value: count,
+      color: moodColors[mood] || '#6B7280',
+      text: `${moodEmojis[mood] || ''} ${mood.charAt(0).toUpperCase() + mood.slice(1)} · ${count}`,
+    }));
+  }, [filteredMoodEntries]);
+
+  // 3. Craving Frequency (Bar Chart Data)
+  const cravingFrequency = useMemo(() => {
+    if (filteredMoodEntries.length === 0) return [];
+
+    const cravingCounts: Record<string, number> = {
+      none: 0,
+      mild: 0,
+      moderate: 0,
+      strong: 0,
+      intense: 0,
+    };
+
+    filteredMoodEntries.forEach(entry => {
+      if (entry.hasCraving && entry.cravingIntensity) {
+        cravingCounts[entry.cravingIntensity] = (cravingCounts[entry.cravingIntensity] || 0) + 1;
+      } else {
+        cravingCounts.none += 1;
+      }
+    });
+
+    const cravingColors: Record<string, string> = {
+      none: '#22C55E',
+      mild: '#84CC16',
+      moderate: '#F59E0B',
+      strong: '#F97316',
+      intense: '#EF4444',
+    };
+
+    return Object.entries(cravingCounts)
+      .filter(([, count]) => count > 0)
+      .map(([intensity, count]) => ({
+        value: count,
+        label: intensity.charAt(0).toUpperCase() + intensity.slice(1),
+        frontColor: cravingColors[intensity] || '#6B7280',
+      }));
+  }, [filteredMoodEntries]);
+
+  // 4. Usage-Mood Correlations
+  const usageMoodCorrelations = useMemo(() => {
+    if (filteredSessions.length === 0 || filteredMoodEntries.length === 0) return [];
+
+    // Group moods by day and check if there were sessions
+    const dailyData: Record<string, { hadSession: boolean; moods: string[] }> = {};
+
+    filteredSessions.forEach(session => {
+      const day = format(new Date(session.timestamp), 'yyyy-MM-dd');
+      if (!dailyData[day]) {
+        dailyData[day] = { hadSession: true, moods: [] };
+      } else {
+        dailyData[day].hadSession = true;
+      }
+    });
+
+    filteredMoodEntries.forEach(entry => {
+      const day = format(new Date(entry.timestamp), 'yyyy-MM-dd');
+      if (!dailyData[day]) {
+        dailyData[day] = { hadSession: false, moods: [] };
+      }
+      dailyData[day].moods.push(entry.mood);
+    });
+
+    // Calculate average mood scores for session days vs non-session days
+    const moodValues: Record<string, number> = {
+      happy: 5,
+      calm: 4,
+      neutral: 3,
+      anxious: 2,
+      stressed: 1,
+      sad: 0,
+    };
+
+    let sessionDayMoodSum = 0;
+    let sessionDayMoodCount = 0;
+    let nonSessionDayMoodSum = 0;
+    let nonSessionDayMoodCount = 0;
+
+    Object.values(dailyData).forEach(day => {
+      const avgMood = day.moods.reduce((sum, mood) => sum + moodValues[mood], 0) / (day.moods.length || 1);
+
+      if (day.hadSession) {
+        sessionDayMoodSum += avgMood;
+        sessionDayMoodCount++;
+      } else if (day.moods.length > 0) {
+        nonSessionDayMoodSum += avgMood;
+        nonSessionDayMoodCount++;
+      }
+    });
+
+    const data = [];
+    if (sessionDayMoodCount > 0) {
+      data.push({
+        label: 'Session\ndays',
+        value: sessionDayMoodSum / sessionDayMoodCount,
+        frontColor: '#22C55E',
+      });
+    }
+    if (nonSessionDayMoodCount > 0) {
+      data.push({
+        label: 'Non-session\ndays',
+        value: nonSessionDayMoodSum / nonSessionDayMoodCount,
+        frontColor: '#6366F1',
+      });
+    }
+
+    return data;
+  }, [filteredSessions, filteredMoodEntries]);
+
+  // 5. Trigger Pattern Analysis
+  const triggerPatterns = useMemo(() => {
+    if (filteredMoodEntries.length === 0) return [];
+
+    const triggerCounts: Record<string, number> = {};
+
+    filteredMoodEntries.forEach(entry => {
+      if (entry.triggers && entry.triggers.length > 0) {
+        entry.triggers.forEach(trigger => {
+          triggerCounts[trigger] = (triggerCounts[trigger] || 0) + 1;
+        });
+      }
+    });
+
+    return Object.entries(triggerCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([trigger, count]) => ({
+        trigger,
+        count,
+        percentage: Math.round((count / filteredMoodEntries.length) * 100),
+      }));
+  }, [filteredMoodEntries]);
 
   // Days sober (for health section)
   const daysSober = useMemo(() => {
@@ -492,6 +707,35 @@ export default function StatsScreen() {
     );
   };
 
+  const TabButton = ({ tab, label, icon }: { tab: TabType; label: string; icon: string }) => {
+    const isActive = activeTab === tab;
+    return (
+      <TouchableOpacity
+        style={[
+          styles.tabButton,
+          {
+            backgroundColor: isActive ? theme.primary : 'transparent',
+            borderBottomWidth: isActive ? 3 : 0,
+            borderBottomColor: theme.primary,
+          },
+        ]}
+        onPress={() => setActiveTab(tab)}
+      >
+        <Text style={styles.tabIcon}>{icon}</Text>
+        <Text
+          style={[
+            styles.tabButtonText,
+            {
+              color: isActive ? theme.text : theme.textSecondary,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   // Empty state
   if (sessions.length === 0) {
     return (
@@ -567,6 +811,12 @@ export default function StatsScreen() {
         </View>
       </LinearGradient>
 
+      {/* TAB SWITCHER */}
+      <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
+        <TabButton tab="usage" label="Usage" icon="📊" />
+        <TabButton tab="mood" label="Mood & Feelings" icon="🧠" />
+      </View>
+
       {/* TIME FILTER PILL BAR */}
       <View
         style={[
@@ -583,6 +833,9 @@ export default function StatsScreen() {
         <FilterButton filter="lifetime" label="All time" />
       </View>
 
+      {/* Conditionally render based on active tab */}
+      {activeTab === 'usage' ? (
+        <>
       {/* QUICK STATS STRIP */}
       <View style={styles.statsRow}>
         <View
@@ -1151,6 +1404,208 @@ export default function StatsScreen() {
           </Text>
         </View>
       </View>
+        </>
+      ) : (
+        <>
+          {/* MOOD & FEELINGS TAB CONTENT */}
+          {filteredMoodEntries.length === 0 ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                No mood data yet
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                Start tracking your mood and feelings on the Home screen to see insights here.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Mood Timeline */}
+              {moodTimeline.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Mood over time
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                    How your mood has been trending
+                  </Text>
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    <LineChart
+                      data={moodTimeline}
+                      width={screenWidth - 72}
+                      height={220}
+                      spacing={moodTimeline.length > 10 ? 20 : 30}
+                      color={theme.primary}
+                      thickness={3}
+                      startFillColor={theme.primary + '40'}
+                      endFillColor={theme.primary + '10'}
+                      startOpacity={0.9}
+                      endOpacity={0.2}
+                      initialSpacing={10}
+                      noOfSections={5}
+                      maxValue={5}
+                      yAxisColor={theme.border}
+                      xAxisColor={theme.border}
+                      yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+                      xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+                      areaChart
+                      curved
+                      isAnimated
+                      animationDuration={1000}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Mood Distribution */}
+              {moodDistribution.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Mood distribution
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                    Your most common moods
+                  </Text>
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    <PieChart
+                      data={moodDistribution}
+                      donut
+                      radius={90}
+                      innerRadius={60}
+                      innerCircleColor={theme.card}
+                      showGradient
+                      centerLabelComponent={() => (
+                        <View style={styles.centerLabel}>
+                          <Text style={[styles.centerLabelText, { color: theme.text }]}>
+                            {filteredMoodEntries.length}
+                          </Text>
+                          <Text style={[styles.centerLabelSubtext, { color: theme.textSecondary }]}>
+                            Entries
+                          </Text>
+                        </View>
+                      )}
+                    />
+                    <View style={styles.legendContainer}>
+                      {moodDistribution.map((item, index) => (
+                        <View key={index} style={styles.legendItem}>
+                          <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                          <Text style={[styles.legendText, { color: theme.text }]}>
+                            {item.text}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Craving Frequency */}
+              {cravingFrequency.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Craving intensity
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                    How strong your cravings have been
+                  </Text>
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    <BarChart
+                      data={cravingFrequency}
+                      width={screenWidth - 72}
+                      height={200}
+                      barWidth={40}
+                      spacing={16}
+                      roundedTop
+                      roundedBottom
+                      hideRules
+                      xAxisThickness={0}
+                      yAxisThickness={0}
+                      yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+                      xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+                      noOfSections={4}
+                      maxValue={Math.max(...cravingFrequency.map(c => c.value)) + 1}
+                      isAnimated
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Usage-Mood Correlations */}
+              {usageMoodCorrelations.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Mood on session days vs non-session days
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                    Average mood scores (0=sad, 5=happy)
+                  </Text>
+                  <View style={[styles.card, { backgroundColor: theme.card }]}>
+                    <BarChart
+                      data={usageMoodCorrelations}
+                      width={screenWidth - 72}
+                      height={200}
+                      barWidth={60}
+                      spacing={40}
+                      roundedTop
+                      roundedBottom
+                      hideRules
+                      xAxisThickness={0}
+                      yAxisThickness={0}
+                      yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+                      xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+                      noOfSections={5}
+                      maxValue={5}
+                      isAnimated
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Trigger Patterns */}
+              {triggerPatterns.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Common triggers
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                    What tends to trigger cravings or mood changes
+                  </Text>
+                  {triggerPatterns.map((item, index) => (
+                    <View
+                      key={index}
+                      style={[styles.triggerCard, { backgroundColor: theme.card }]}
+                    >
+                      <View style={styles.triggerInfo}>
+                        <Text style={[styles.triggerName, { color: theme.text }]}>
+                          {item.trigger.charAt(0).toUpperCase() + item.trigger.slice(1)}
+                        </Text>
+                        <Text style={[styles.triggerCount, { color: theme.textSecondary }]}>
+                          {item.count} times ({item.percentage}%)
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.triggerBar,
+                          { backgroundColor: theme.border, width: '100%' },
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.triggerBarFill,
+                            {
+                              width: `${item.percentage}%`,
+                              backgroundColor: theme.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -1488,5 +1943,61 @@ const styles = StyleSheet.create({
   moneyValue: {
     fontSize: 18,
     fontWeight: '700',
+  },
+
+  // TAB SWITCHER
+  tabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    borderBottomWidth: 2,
+    marginBottom: 16,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+  },
+  tabIcon: {
+    fontSize: 18,
+  },
+  tabButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
+  // TRIGGER PATTERNS
+  triggerCard: {
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  triggerInfo: {
+    marginBottom: 8,
+  },
+  triggerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  triggerCount: {
+    fontSize: 12,
+  },
+  triggerBar: {
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  triggerBarFill: {
+    height: '100%',
+    borderRadius: 999,
   },
 });
