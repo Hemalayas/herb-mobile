@@ -227,41 +227,6 @@ export default function SettingsScreen() {
             ›
           </Text>
         </TouchableOpacity>
-
-
-        {/* Average Session Cost */}
-        <TouchableOpacity
-          style={[styles.settingRow, { backgroundColor: theme.card }]}
-          onPress={() => {
-            Alert.prompt(
-              'Average Session Cost',
-              'Used when you quick log a session without entering a custom amount.',
-              (text) => {
-                const value = parseFloat(text);
-                if (!isNaN(value) && value >= 0) {
-                  updateSettings({ averageSessionCost: value });
-                } else if (text.trim() === '') {
-                  // Clear the setting if user deletes the value
-                  updateSettings({ averageSessionCost: undefined });
-                }
-              },
-              'plain-text',
-              settings.averageSessionCost !== undefined
-                ? settings.averageSessionCost.toString()
-                : ''
-            );
-          }}
-        >
-          <View style={styles.settingInfo}>
-            <Text style={[styles.settingLabel, { color: theme.text }]}>💰 Average Session Cost</Text>
-            <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
-              {settings.averageSessionCost !== undefined
-                ? `$${settings.averageSessionCost.toFixed(2)} per session`
-                : 'Not set'}
-            </Text>
-          </View>
-          <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
-        </TouchableOpacity>
       </View>
 
       {/* About */}

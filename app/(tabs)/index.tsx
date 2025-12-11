@@ -599,7 +599,14 @@ export default function HomeScreen() {
 
         <View style={styles.sessionImageContainer}>
           <View style={styles.sessionContent}>
-            <Image source={image} style={styles.sessionImage} />
+            <Image
+              source={image}
+              style={{
+                width: 200,
+                height: 200,
+                alignSelf: 'center',
+              }}
+            />
             <View
               style={[
                 styles.messageCard,
@@ -829,7 +836,14 @@ export default function HomeScreen() {
 
         <View style={styles.sessionImageContainer}>
           <View style={styles.sessionContent}>
-            <Image source={level1Image} style={styles.sessionImage} />
+            <Image
+              source={level1Image}
+              style={{
+                width: 200,
+                height: 200,
+                alignSelf: 'center',
+              }}
+            />
             <View
               style={[
                 styles.messageCard,
@@ -962,7 +976,14 @@ export default function HomeScreen() {
 
       <View style={styles.sessionImageContainer}>
         <View style={styles.sessionContent}>
-          <Image source={currentImage} style={styles.sessionImage} />
+          <Image
+            source={currentImage}
+            style={{
+              width: 200,
+              height: 200,
+              alignSelf: 'center',
+            }}
+          />
           <View
             style={[
               styles.messageCard,
@@ -1392,10 +1413,6 @@ const styles = StyleSheet.create({
   sessionContent: {
     alignItems: 'center',
     gap: 16,
-  },
-  sessionImage: {
-    width: 120,
-    height: 120,
   },
   messageCard: {
     borderRadius: 16,
