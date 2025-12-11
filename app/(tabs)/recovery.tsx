@@ -203,7 +203,7 @@ export default function RecoveryScreen() {
       <View key={`${requiredDays}-${label}`} style={styles.timelineItem}>
         <View style={styles.timelineBadgeContainer}>
           <Text style={[styles.timelineBadge, { opacity: isCompleted ? 1 : 0.5 }]}>{badge}</Text>
-          {requiredDays !== 365 && (
+          {requiredDays !== 1825 && (
             <View style={[styles.timelineLine, { backgroundColor: lineColor, opacity: 0.3 }]} />
           )}
         </View>
@@ -292,22 +292,43 @@ export default function RecoveryScreen() {
         </Text>
         <View style={[styles.timelineCard, { backgroundColor: theme.card }]}>
           {renderHealthMilestone(1, '20 minutes', 'Heart rate & blood pressure normalize', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1, '2 hours', 'Nicotine cravings peak and start to subside', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(1, '8 hours', 'Carbon monoxide levels drop to normal', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(1, '24 hours', 'Lungs start clearing out mucus', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(2, '2 days', 'Nerve endings begin to heal', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1, '12 hours', 'Blood oxygen levels return to normal', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1, '24 hours', 'Lungs start clearing out mucus and debris', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(2, '2 days', 'Nerve endings begin to regenerate', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(2, '2 days', 'Sense of taste and smell improve', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(3, '3 days', 'Brain fog begins to lift', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(3, '3 days', 'Breathing becomes easier', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(7, '1 week', 'Sleep quality improves significantly', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(7, '1 week', 'Energy levels increase', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(14, '2 weeks', 'Memory & concentration improve', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(3, '3 days', 'Breathing becomes noticeably easier', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(3, '3 days', 'Withdrawal symptoms peak', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(5, '5 days', 'Coughing decreases significantly', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(7, '1 week', 'Sleep quality improves dramatically', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(7, '1 week', 'Energy levels increase noticeably', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(7, '1 week', 'Physical cravings mostly gone', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(10, '10 days', 'Circulation improves throughout body', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(14, '2 weeks', 'Memory & concentration significantly improve', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(14, '2 weeks', 'Physical fitness improves', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(21, '3 weeks', 'Mood stabilizes', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(14, '2 weeks', 'Skin appearance improves', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(21, '3 weeks', 'Mood stabilizes and improves', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(21, '3 weeks', 'Anxiety levels decrease', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(30, '1 month', 'Tolerance fully reset', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(30, '1 month', 'Lung function increases significantly', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(30, '1 month', 'Lung function increases 10-30%', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(30, '1 month', 'Immune system begins strengthening', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(45, '6 weeks', 'Dopamine receptors begin healing', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(60, '2 months', 'Mental clarity fully restored', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(90, '3 months', 'Immune system strengthened', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(60, '2 months', 'Motivation returns to normal', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(90, '3 months', 'Immune system fully strengthened', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(90, '3 months', 'Blood circulation normalized', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(90, '3 months', 'Lung capacity increased significantly', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(120, '4 months', 'Brain chemistry stabilizes', isRecoveryMode, sobrietyStartDate)}
           {renderHealthMilestone(180, '6 months', 'Long-term brain function restored', isRecoveryMode, sobrietyStartDate)}
-          {renderHealthMilestone(365, '1 year', 'Risk of respiratory issues greatly reduced', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(180, '6 months', 'Risk of heart disease reduced', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(270, '9 months', 'Lung healing continues progressively', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(365, '1 year', 'Respiratory health greatly improved', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(365, '1 year', 'Overall health significantly better', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(730, '2 years', 'Risk of chronic health issues drops', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1095, '3 years', 'Body fully recovered from effects', isRecoveryMode, sobrietyStartDate)}
+          {renderHealthMilestone(1825, '5 years', 'Long-term health risks normalized', isRecoveryMode, sobrietyStartDate)}
         </View>
       </View>
     </ScrollView>

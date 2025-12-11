@@ -288,6 +288,49 @@ export default function HomeScreen() {
 
   const hasSpendingData = spendingChartData.some((d) => d.value > 0);
 
+  // 💰 Money saved chart data – last 7 days (Recovery mode)
+  const moneySavedChartData = useMemo(() => {
+    if (!isRecoveryMode || !sobrietyStartDate || averageSessionCost <= 0) return [];
+
+    const now = new Date();
+    const data: { value: number; label: string; frontColor: string }[] = [];
+
+    // Calculate average sessions per day from historical data
+    const allDays = Math.max(1, Math.floor((Date.now() - sessions[sessions.length - 1]?.timestamp || Date.now()) / DAY_MS));
+    const avgSessionsPerDay = sessions.length / allDays;
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - i
+      );
+      const dayTimestamp = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+      // Check if this day is within the recovery period
+      if (dayTimestamp >= sobrietyStartDate) {
+        // Estimate money saved on this day based on average usage
+        const estimatedSavings = avgSessionsPerDay * averageSessionCost;
+        const label = `${date.getMonth() + 1}/${date.getDate()}`;
+        data.push({
+          value: estimatedSavings,
+          label,
+          frontColor: '#10B981',
+        });
+      } else {
+        data.push({
+          value: 0,
+          label: `${date.getMonth() + 1}/${date.getDate()}`,
+          frontColor: '#10B981',
+        });
+      }
+    }
+
+    return data;
+  }, [sessions, averageSessionCost, isRecoveryMode, sobrietyStartDate]);
+
+  const hasMoneySavedData = moneySavedChartData.some((d) => d.value > 0);
+
   // T-Break helper functions
   const getTimeRemaining = () => {
     if (!activeTBreak) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
@@ -576,29 +619,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 💸 Spending chart – last 7 days (T-Break) */}
-        {hasSpendingData && (
-          <View style={[styles.spendingCard, { backgroundColor: theme.card }]}>
-            <Text style={[styles.chartTitle, { color: theme.text }]}>Spending – last 7 days</Text>
-            <BarChart
-              data={spendingChartData}
-              width={300}
-              height={180}
-              barWidth={20}
-              spacing={10}
-              hideRules
-              xAxisThickness={0}
-              yAxisThickness={0}
-              yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
-              yAxisLabelPrefix={currencySymbol}
-              noOfSections={4}
-              maxValue={Math.max(...spendingChartData.map((d) => d.value))}
-              roundedTop
-              isAnimated
-            />
-          </View>
-        )}
+        {/* No spending chart on t-break screen */}
 
         <View style={styles.sessionImageContainer}>
           <View style={styles.sessionContent}>
@@ -767,12 +788,12 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 💸 Spending chart – last 7 days (Recovery) */}
-        {hasSpendingData && (
+        {/* 💰 Money saved chart – last 7 days (Recovery) */}
+        {hasMoneySavedData && (
           <View style={[styles.spendingCard, { backgroundColor: theme.card }]}>
-            <Text style={[styles.chartTitle, { color: theme.text }]}>Spending – last 7 days</Text>
+            <Text style={[styles.chartTitle, { color: theme.text }]}>💰 Money saved – last 7 days</Text>
             <BarChart
-              data={spendingChartData}
+              data={moneySavedChartData}
               width={300}
               height={180}
               barWidth={20}
@@ -784,29 +805,43 @@ export default function HomeScreen() {
               xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
               yAxisLabelPrefix={currencySymbol}
               noOfSections={4}
-              maxValue={Math.max(...spendingChartData.map((d) => d.value))}
+              maxValue={Math.max(...moneySavedChartData.map((d) => d.value), 1)}
               roundedTop
               isAnimated
             />
+            <Text style={[styles.savingsCaption, { color: theme.textSecondary }]}>
+              Estimated daily savings based on your past average usage.
+            </Text>
           </View>
         )}
 
         <View style={[styles.recoveryStatsCard, { backgroundColor: theme.card }]}>
           <View style={styles.recoveryStatItem}>
             <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>
-              {achievedCount}/{healthMilestones.length}
+              {sobrietyTime.days}
             </Text>
-            <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Milestones</Text>
-          </View>
-        <View style={[styles.recoveryStatDivider, { backgroundColor: theme.border }]} />
-          <View style={styles.recoveryStatItem}>
-            <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>{sobrietyTime.days}</Text>
             <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Days Clean</Text>
           </View>
           <View style={[styles.recoveryStatDivider, { backgroundColor: theme.border }]} />
           <View style={styles.recoveryStatItem}>
-            <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>💪</Text>
-            <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Strong</Text>
+            <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>
+              {sobrietyTime.hours}h
+            </Text>
+            <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Hours</Text>
+          </View>
+          <View style={[styles.recoveryStatDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.recoveryStatItem}>
+            <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>
+              {achievedCount}/{healthMilestones.length}
+            </Text>
+            <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Milestones</Text>
+          </View>
+          <View style={[styles.recoveryStatDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.recoveryStatItem}>
+            <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>
+              {currencySymbol}{recoverySavings.estimated.toFixed(0)}
+            </Text>
+            <Text style={[styles.recoveryStatLabel, { color: theme.textSecondary }]}>Saved</Text>
           </View>
         </View>
 
