@@ -8,6 +8,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
@@ -570,21 +571,28 @@ export default function StatsScreen() {
       contentContainerStyle={{ paddingBottom: 32 }}
     >
       {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Image
-            source={require('../../assets/stats.png')}
-            style={styles.headerIconLarge}
-            resizeMode="contain"
-          />
-          <View>
-            <Text style={[styles.title, { color: theme.text }]}>Your Stats</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              A snapshot of how you’ve been using Herb
-            </Text>
+      <LinearGradient
+        colors={[theme.primary + '15', 'transparent']}
+        style={styles.headerGradient}
+      >
+        <View style={styles.header}>
+          <View style={styles.headerRow}>
+            <View style={[styles.headerIconContainer, { backgroundColor: theme.primary + '20' }]}>
+              <Image
+                source={require('../../assets/stats.png')}
+                style={styles.headerIconLarge}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.title, { color: theme.text }]}>Your Stats 📊</Text>
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                Track your journey & insights
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* TIME FILTER PILL BAR */}
       <View
@@ -1180,6 +1188,9 @@ const styles = StyleSheet.create({
   },
 
   // HEADER
+  headerGradient: {
+    paddingBottom: 16,
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 52,
@@ -1188,15 +1199,27 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 16,
+  },
+  headerIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   headerIcon: {
     width: 32,
     height: 32,
   },
   headerIconLarge: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
   },
   title: {
     fontSize: 26,
@@ -1213,57 +1236,66 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 20,
     borderRadius: 999,
-    padding: 4,
+    padding: 5,
     marginTop: 8,
-    marginBottom: 16,
-    borderWidth: 1,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterButton: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 
   // QUICK STATS
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
+    gap: 14,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    minHeight: 100,
   },
   statIconPill: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginBottom: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 8,
   },
   statEmoji: {
-    fontSize: 14,
+    fontSize: 16,
   },
   statLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 4,
-    opacity: 0.85,
+    fontWeight: '700',
+    marginBottom: 6,
+    opacity: 0.8,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   statNumber: {
     fontSize: 20,
