@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Platform } from 'react-native';
-import RevenueCatUI, { CUSTOMER_CENTER_RESULT } from 'react-native-purchases-ui';
+import RevenueCatUI from 'react-native-purchases-ui';
 
 interface CustomerCenterProps {
   visible: boolean;
@@ -43,38 +43,10 @@ export default function CustomerCenter({ visible, onClose }: CustomerCenterProps
         return;
       }
 
-      const result = await RevenueCatUI.presentCustomerCenter();
+      await RevenueCatUI.presentCustomerCenter();
 
-      // Handle customer center result
-      switch (result) {
-        case CUSTOMER_CENTER_RESULT.RESTORED:
-          console.log('✅ Purchases restored from Customer Center');
-          Alert.alert(
-            'Purchases Restored',
-            'Your purchases have been successfully restored.',
-            [{ text: 'OK', onPress: onClose }]
-          );
-          break;
-
-        case CUSTOMER_CENTER_RESULT.CLOSED:
-          console.log('ℹ️ Customer Center closed');
-          onClose();
-          break;
-
-        case CUSTOMER_CENTER_RESULT.ERROR:
-          console.error('❌ Customer Center error');
-          Alert.alert(
-            'Error',
-            'Something went wrong. Please try again.',
-            [{ text: 'OK', onPress: onClose }]
-          );
-          onClose();
-          break;
-
-        default:
-          onClose();
-          break;
-      }
+      console.log('ℹ️ Customer Center closed');
+      onClose();
     } catch (error) {
       console.error('❌ Error presenting Customer Center:', error);
       Alert.alert(

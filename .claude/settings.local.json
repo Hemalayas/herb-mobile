@@ -7,7 +7,20 @@
       "Bash(git add:*)",
       "Bash(git reset:*)",
       "Bash(git commit:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(timeout /t 30 /nobreak)",
+      "Bash(eas build:*)",
+      "Bash(npm start)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(ping:*)",
+      "Bash(grep:*)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(taskkill:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

@@ -16,7 +16,7 @@ const lightTheme: Theme = {
   card: '#FFFFFF',
   text: '#1F2937',
   textSecondary: '#6B7280',
-  primary: '#00D084',
+  primary: '#10B981',
   border: '#E5E7EB',
   inputBackground: '#F3F4F6',
 };
@@ -26,7 +26,7 @@ const darkTheme: Theme = {
   card: '#1F2937',
   text: '#F9FAFB',
   textSecondary: '#D1D5DB',
-  primary: '#00D084',
+  primary: '#10B981',
   border: '#374151',
   inputBackground: '#374151',
 };

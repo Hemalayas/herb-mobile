@@ -7,9 +7,32 @@ import Purchases, {
 } from 'react-native-purchases';
 import { Platform } from 'react-native';
 
+// -----------------------------------------------------------------------------
 // RevenueCat Configuration
-const REVENUECAT_API_KEY = 'test_OoBWOyybxKQuwUKOwYTWmvdpTHd';
-const ENTITLEMENT_ID = 'Herb Pro'; // Your premium entitlement
+// -----------------------------------------------------------------------------
+
+// ✅ iOS Public SDK key (from RevenueCat -> API keys)
+const IOS_API_KEY = 'appl_ylUXQEiTQWRWuacGjhEKjucyrki';
+
+// ✅ Android Public SDK key (from RevenueCat -> API keys)  <-- ADD THIS
+const ANDROID_API_KEY = 'goog_jQcUtBktBUqRLecHitWfuIZfAey'; // TODO: paste your goog_... key
+
+// ✅ MUST MATCH RevenueCat entitlement IDENTIFIER exactly (not display name)
+const ENTITLEMENT_ID = 'Herb Pro';
+
+// Small helper
+const getApiKeyForPlatform = () => {
+  const key = Platform.OS === 'ios' ? IOS_API_KEY : ANDROID_API_KEY;
+
+  // Guard so Android doesn’t silently misbehave
+  if (Platform.OS === 'android' && (!ANDROID_API_KEY || ANDROID_API_KEY.includes('XXXX'))) {
+    throw new Error(
+      'RevenueCat Android API key is missing. Paste your goog_... key into ANDROID_API_KEY in src/services/revenueCat.ts'
+    );
+  }
+
+  return key;
+};
 
 /**
  * Initialize RevenueCat SDK
@@ -17,15 +40,15 @@ const ENTITLEMENT_ID = 'Herb Pro'; // Your premium entitlement
  */
 export const initRevenueCat = async () => {
   try {
-    // Configure the SDK with your API key
-    Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+    const apiKey = getApiKeyForPlatform();
 
-    // Enable debug logs in development
+    Purchases.configure({ apiKey });
+
     if (__DEV__) {
       Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     }
 
-    console.log('✅ RevenueCat initialized successfully');
+    console.log('✅ RevenueCat initialized successfully', { platform: Platform.OS });
   } catch (error) {
     console.error('❌ Error initializing RevenueCat:', error);
     throw error;
@@ -40,7 +63,7 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
   try {
     const offerings = await Purchases.getOfferings();
 
-    if (offerings.current !== null) {
+    if (offerings.current) {
       console.log('✅ Offerings loaded:', {
         identifier: offerings.current.identifier,
         packagesCount: offerings.current.availablePackages.length,
@@ -61,15 +84,20 @@ export const getOfferings = async (): Promise<PurchasesOffering | null> => {
  */
 export const purchasePackage = async (
   pkg: PurchasesPackage
-): Promise<{ customerInfo: CustomerInfo; userCancelled: boolean } | null> => {
+): Promise<{ customerInfo: CustomerInfo | null; userCancelled: boolean } | null> => {
   try {
     const { customerInfo } = await Purchases.purchasePackage(pkg);
-    console.log('✅ Purchase successful:', pkg.identifier);
+    console.log('✅ Purchase successful:', {
+      pkgIdentifier: pkg.identifier,
+      productId: pkg.product.identifier,
+
+    });
     return { customerInfo, userCancelled: false };
   } catch (error: any) {
-    if (error.userCancelled) {
+    // RevenueCat sets `userCancelled` for user-initiated cancellations
+    if (error?.userCancelled) {
       console.log('ℹ️ User cancelled purchase');
-      return { customerInfo: error.customerInfo, userCancelled: true };
+      return { customerInfo: null, userCancelled: true };
     }
     console.error('❌ Purchase error:', error);
     return null;
@@ -78,7 +106,6 @@ export const purchasePackage = async (
 
 /**
  * Restore previous purchases
- * Important for users who reinstall the app or switch devices
  */
 export const restorePurchases = async (): Promise<CustomerInfo | null> => {
   try {
@@ -93,7 +120,6 @@ export const restorePurchases = async (): Promise<CustomerInfo | null> => {
 
 /**
  * Get current customer info
- * Contains all purchase and subscription information
  */
 export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
   try {
@@ -106,15 +132,13 @@ export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
 };
 
 /**
- * Check if user has active "Herb Pro" entitlement
- * This is the recommended way to check subscription status
+ * Check if user has active Herb Pro entitlement
  */
 export const hasHerbPro = async (): Promise<boolean> => {
   try {
     const customerInfo = await getCustomerInfo();
     if (!customerInfo) return false;
 
-    // Check specifically for "Herb Pro" entitlement
     const herbProEntitlement = customerInfo.entitlements.active[ENTITLEMENT_ID];
 
     if (herbProEntitlement) {
@@ -122,6 +146,7 @@ export const hasHerbPro = async (): Promise<boolean> => {
         productIdentifier: herbProEntitlement.productIdentifier,
         willRenew: herbProEntitlement.willRenew,
         periodType: herbProEntitlement.periodType,
+        isSandbox: herbProEntitlement.isSandbox,
       });
       return true;
     }
@@ -141,8 +166,7 @@ export const isSubscriptionActive = async (): Promise<boolean> => {
     const customerInfo = await getCustomerInfo();
     if (!customerInfo) return false;
 
-    const entitlements = customerInfo.entitlements.active;
-    return Object.keys(entitlements).length > 0;
+    return Object.keys(customerInfo.entitlements.active).length > 0;
   } catch (error) {
     console.error('❌ Error checking subscription status:', error);
     return false;
@@ -151,7 +175,6 @@ export const isSubscriptionActive = async (): Promise<boolean> => {
 
 /**
  * Identify user (for cross-platform support)
- * Call this after user logs in with your authentication system
  */
 export const identifyUser = async (userId: string): Promise<CustomerInfo | null> => {
   try {
@@ -166,11 +189,11 @@ export const identifyUser = async (userId: string): Promise<CustomerInfo | null>
 
 /**
  * Logout user
- * Call this when user logs out of your app
  */
 export const logoutUser = async (): Promise<CustomerInfo | null> => {
   try {
-    const { customerInfo } = await Purchases.logOut();
+    const customerInfo = await Purchases.logOut();
+
     console.log('✅ User logged out');
     return customerInfo;
   } catch (error) {
@@ -219,8 +242,7 @@ export const isInTrialPeriod = async (): Promise<boolean> => {
 };
 
 /**
- * Get all available products
- * Useful for displaying product information
+ * Get all available products (optional helper)
  */
 export const getProducts = async (productIds: string[]): Promise<PurchasesStoreProduct[]> => {
   try {

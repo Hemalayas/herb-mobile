@@ -399,6 +399,7 @@ const styles = StyleSheet.create({
   // Floating widget styles
   floatingWidget: {
     marginHorizontal: 20,
+    marginTop: 50,
     marginBottom: 20,
     borderRadius: 20,
     padding: 20,

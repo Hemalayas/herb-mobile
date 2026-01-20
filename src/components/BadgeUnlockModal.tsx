@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
-import Animated, { FadeIn, SlideInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInDown, ZoomIn, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useAppStore } from '../store/appStore';
 import { BADGE_DEFINITIONS, getBadgeImage } from '../utils/badges';
@@ -48,14 +48,14 @@ export default function BadgeUnlockModal() {
       <BlurView intensity={25} tint="dark" style={styles.absoluteOverlay}>
         
         {/* Animated Card - Slides up from bottom */}
-        <Animated.View 
-          entering={SlideInDown.springify().damping(15)} 
+        <Animated.View
+          entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))}
           style={styles.modal}
         >
-          
+
           {/* Animated Badge - Zooms in */}
-          <Animated.View 
-            entering={ZoomIn.delay(200).springify()}
+          <Animated.View
+            entering={ZoomIn.delay(150).duration(350).easing(Easing.out(Easing.quad))}
             style={styles.iconContainer}
           >
             <Image

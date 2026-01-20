@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Alert } from 'react-native';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
+import { usePremium } from '../context/PremiumContext';
 
 interface PaywallModalProps {
   visible: boolean;
@@ -29,14 +30,20 @@ export default function PaywallModal({
   onClose,
   onPurchaseComplete,
 }: PaywallModalProps) {
+  const { checkPremiumStatus } = usePremium();
+  const [isPresenting, setIsPresenting] = useState(false);
+
   React.useEffect(() => {
-    if (visible) {
+    if (visible && !isPresenting) {
       presentPaywall();
     }
   }, [visible]);
 
   const presentPaywall = async () => {
+    if (isPresenting) return;
+
     try {
+      setIsPresenting(true);
       const paywallResult = await RevenueCatUI.presentPaywall();
 
       // Handle paywall result
@@ -44,10 +51,14 @@ export default function PaywallModal({
         case PAYWALL_RESULT.PURCHASED:
         case PAYWALL_RESULT.RESTORED:
           console.log('✅ Purchase successful or restored');
+
+          // Refresh premium status
+          await checkPremiumStatus();
+
           Alert.alert(
-            'Success! 🎉',
+            paywallResult === PAYWALL_RESULT.PURCHASED ? 'Welcome to Herb Pro! 🎉' : 'Restored Successfully!',
             paywallResult === PAYWALL_RESULT.PURCHASED
-              ? 'Welcome to Herb Pro!'
+              ? 'Your premium features are now unlocked!'
               : 'Your purchases have been restored',
             [
               {
@@ -92,6 +103,8 @@ export default function PaywallModal({
         [{ text: 'OK', onPress: onClose }]
       );
       onClose();
+    } finally {
+      setIsPresenting(false);
     }
   };
 

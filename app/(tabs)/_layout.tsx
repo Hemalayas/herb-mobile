@@ -1,9 +1,17 @@
 import { Tabs } from 'expo-router';
-import { Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useAppStore } from '../../src/store/appStore';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
   const theme = useTheme();
+  const settings = useAppStore((state) => state.settings);
+  const isDark = settings.theme === 'dark';
+
+  // Production-ready tab bar configuration
+  const tabBarHeight = Platform.OS === 'ios' ? 88 : 68;
+  const iconSize = 24;
 
   return (
     <Tabs
@@ -12,26 +20,47 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.card,
           borderTopColor: theme.border,
-          borderTopWidth: 1,
+          borderTopWidth: 0.5,
+          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+          paddingTop: 8,
+          paddingHorizontal: 8,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
         },
-        // These tint colors now only apply to the text labels below the icons
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.textSecondary,
+        tabBarActiveTintColor: '#10B981', // Brand green
+        tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#6B7280',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 4,
+          letterSpacing: 0.2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
+        animation: 'none',
+        lazy: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/home.png')}
-              style={{
-                width: 40,
-                height: 40,
-                // No tintColor here, so the original image colors show
-                opacity: focused ? 1 : 0.5, 
-              }}
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={iconSize}
+              color={color}
+              style={{ marginBottom: -2 }}
             />
           ),
         }}
@@ -40,14 +69,12 @@ export default function TabLayout() {
         name="stats"
         options={{
           title: 'Stats',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/stats.png')}
-              style={{
-                width: 40,
-                height: 40,
-                opacity: focused ? 1 : 0.5,
-              }}
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'stats-chart' : 'stats-chart-outline'}
+              size={iconSize}
+              color={color}
+              style={{ marginBottom: -2 }}
             />
           ),
         }}
@@ -56,14 +83,12 @@ export default function TabLayout() {
         name="badges"
         options={{
           title: 'Badges',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/badges.png')}
-              style={{
-                width: 40,
-                height: 40,
-                opacity: focused ? 1 : 0.5,
-              }}
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'trophy' : 'trophy-outline'}
+              size={iconSize}
+              color={color}
+              style={{ marginBottom: -2 }}
             />
           ),
         }}
@@ -72,14 +97,12 @@ export default function TabLayout() {
         name="recovery"
         options={{
           title: 'Recovery',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/recovery.png')}
-              style={{
-                width: 40,
-                height: 40,
-                opacity: focused ? 1 : 0.5,
-              }}
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'heart' : 'heart-outline'}
+              size={iconSize}
+              color={color}
+              style={{ marginBottom: -2 }}
             />
           ),
         }}
@@ -88,14 +111,12 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/settings.png')}
-              style={{
-                width: 40,
-                height: 40,
-                opacity: focused ? 1 : 0.5,
-              }}
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'settings' : 'settings-outline'}
+              size={iconSize}
+              color={color}
+              style={{ marginBottom: -2 }}
             />
           ),
         }}

@@ -6,14 +6,21 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:android": "eas build --platform android --profile production",
+    "build:all": "eas build --platform all --profile production",
+    "submit:ios": "eas submit --platform ios",
+    "submit:android": "eas submit --platform android"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "date-fns": "^4.1.0",
     "expo": "~54.0.27",
     "expo-blur": "~15.0.8",
+    "expo-build-properties": "^1.0.10",
     "expo-constants": "~18.0.10",
+    "expo-dev-client": "~6.0.20",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-linear-gradient": "^15.0.8",
@@ -33,6 +40,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
     "react-native-worklets": "^0.5.1",
     "victory-native": "^41.20.2",
     "zustand": "^5.0.9"

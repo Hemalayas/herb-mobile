@@ -1,0 +1,50 @@
+# App Store & Play Store Submission - Additional .gitignore entries
+
+# Add these to your existing .gitignore file
+
+# EAS Build artifacts
+*.ipa
+*.apk
+*.aab
+dist/
+build/
+
+# Credentials (NEVER commit these!)
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+service-account-key.json
+google-services.json
+GoogleService-Info.plist
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Expo
+.expo/
+.expo-shared/
+
+# Screenshots (large files - optional to commit)
+screenshots/
+store-assets/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Temporary files
+*.log
+*.swp
+*.swo
+*~
+
+# Build outputs
+android/app/build/
+android/app/release/
+ios/build/

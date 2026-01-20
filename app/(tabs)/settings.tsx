@@ -2,14 +2,16 @@ import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert, Image, ScrollV
 import { useAppStore } from '../../src/store/appStore';
 import { useEffect, useState } from 'react';
 import { useTheme } from '../../src/context/ThemeContext';
-import { hasHerbPro } from '../../src/services/revenueCat';
+import { usePremium } from '../../src/context/PremiumContext';
 import PaywallModal from '../../src/components/PaywallModal';
 import CustomerCenter from '../../src/components/CustomerCenter';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { settings, updateSettings, loadSettings } = useAppStore();
-  const [isPro, setIsPro] = useState(false);
+  const { isPremium, checkPremiumStatus } = usePremium();
   const [showPaywall, setShowPaywall] = useState(false);
   const [showCustomerCenter, setShowCustomerCenter] = useState(false);
 
@@ -25,13 +27,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadSettings();
-    checkProStatus();
   }, []);
-
-  const checkProStatus = async () => {
-    const hasPro = await hasHerbPro();
-    setIsPro(hasPro);
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -85,14 +81,37 @@ export default function SettingsScreen() {
           <View style={styles.settingInfo}>
             <Text style={[styles.settingLabel, { color: theme.text }]}>
               {settings.theme === 'dark' ? '🌙' : '☀️'} Theme
+              {!isPremium && ' ⭐'}
             </Text>
             <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
               {settings.theme === 'dark' ? 'Dark mode' : 'Light mode'}
+              {!isPremium && ' (Premium)'}
             </Text>
           </View>
           <Switch
             value={settings.theme === 'dark'}
-            onValueChange={(value) => updateSettings({ theme: value ? 'dark' : 'light' })}
+            onValueChange={(value) => {
+              if (!isPremium && value) {
+                Alert.alert(
+                  'Upgrade to Herb Pro',
+                  'Unlock dark mode and all premium features!\n\n• Dark mode theme\n• Advanced analytics\n• Custom badges\n• Ad-free experience',
+                  [
+                    { text: 'Not Now', style: 'cancel' },
+                    {
+                      text: 'See Plans',
+                      onPress: () => {
+                        console.log('Opening PaywallModal...');
+                        setShowPaywall(true);
+                      },
+                      style: 'default'
+                    }
+                  ],
+                  { cancelable: true }
+                );
+                return;
+              }
+              updateSettings({ theme: value ? 'dark' : 'light' });
+            }}
             trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
             thumbColor={settings.theme === 'dark' ? '#00D084' : '#F3F4F6'}
           />
@@ -245,7 +264,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>Subscription</Text>
 
-        {isPro ? (
+        {isPremium ? (
           <>
             {/* Pro Status Badge */}
             <View style={[styles.settingRow, { backgroundColor: theme.card }]}>
@@ -299,6 +318,55 @@ export default function SettingsScreen() {
       {/* About */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>About</Text>
+
+        {/* View Onboarding */}
+        <TouchableOpacity
+          style={[styles.settingRow, { backgroundColor: theme.card }]}
+          onPress={() => router.push('/onboarding')}
+        >
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingLabel, { color: theme.text }]}>
+              👋 View Onboarding
+            </Text>
+            <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+              Take a tour of the app's features
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+
+        {/* Privacy Policy */}
+        <TouchableOpacity
+          style={[styles.settingRow, { backgroundColor: theme.card }]}
+          onPress={() => router.push('/privacy-policy')}
+        >
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingLabel, { color: theme.text }]}>
+              📄 Privacy Policy
+            </Text>
+            <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+              How we handle your data
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+
+        {/* Terms of Service */}
+        <TouchableOpacity
+          style={[styles.settingRow, { backgroundColor: theme.card }]}
+          onPress={() => router.push('/terms-of-service')}
+        >
+          <View style={styles.settingInfo}>
+            <Text style={[styles.settingLabel, { color: theme.text }]}>
+              📋 Terms of Service
+            </Text>
+            <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+              Usage terms and legal information
+            </Text>
+          </View>
+          <Text style={[styles.chevron, { color: theme.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+
         <View style={[styles.aboutCard, { backgroundColor: theme.card }]}>
           <Text style={[styles.appName, { color: theme.text }]}>🌿 Herb</Text>
           <Text style={[styles.version, { color: theme.textSecondary }]}>Version 1.0.0</Text>
@@ -314,7 +382,7 @@ export default function SettingsScreen() {
         onClose={() => setShowPaywall(false)}
         onPurchaseComplete={() => {
           setShowPaywall(false);
-          checkProStatus();
+          checkPremiumStatus();
         }}
       />
       <CustomerCenter

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,23 @@ import {
   ScrollView,
   Image,
   Platform,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { BarChart } from 'react-native-gifted-charts';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
 import { initDatabase /*, resetDatabase */ } from '../../src/services/database';
 import type { ConsumptionMethod, Mood } from '../../src/types';
 import MoodTracker from '../../src/components/MoodTracker';
+import ToastNotification from '../../src/components/ToastNotification';
+import { useToast } from '../../src/hooks/useToast';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 const getCurrencySymbol = (code?: string): string => {
   if (!code) return '$';
@@ -44,6 +51,7 @@ const getCurrencySymbol = (code?: string): string => {
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { toast, showToast, hideToast } = useToast();
   const {
     addSession,
     deleteSession,
@@ -65,6 +73,7 @@ export default function HomeScreen() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<ConsumptionMethod>('joint');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
 
   const [strain, setStrain] = useState('');
   const [amount, setAmount] = useState('');
@@ -79,6 +88,10 @@ export default function HomeScreen() {
   // Message state - changes every 10 minutes
   const [tbreakMessage, setTbreakMessage] = useState('');
   const [messageTimestamp, setMessageTimestamp] = useState(Date.now());
+
+  // Flip card state for session counter
+  const [isFlipped, setIsFlipped] = useState(false);
+  const flipAnimation = useRef(new Animated.Value(0)).current;
 
   // Initial Data Load
   useEffect(() => {
@@ -153,12 +166,23 @@ export default function HomeScreen() {
       // If user has an average cost, use it so quick log still tracks spend
       cost: averageSessionCost > 0 ? averageSessionCost : undefined,
     });
-    Alert.alert('✅ Logged!', `${method.charAt(0).toUpperCase() + method.slice(1)} session logged`);
+    showToast(`${method.charAt(0).toUpperCase() + method.slice(1)} session logged`, 'success');
   };
 
   const handleLongPress = (method: ConsumptionMethod) => {
     setSelectedMethod(method);
     setShowDetailModal(true);
+  };
+
+  const handleFlipCard = () => {
+    const toValue = isFlipped ? 0 : 1;
+    Animated.spring(flipAnimation, {
+      toValue,
+      friction: 8,
+      tension: 10,
+      useNativeDriver: true,
+    }).start();
+    setIsFlipped(!isFlipped);
   };
 
   const handleDetailedLog = async () => {
@@ -181,7 +205,7 @@ export default function HomeScreen() {
     setSelectedMood(undefined);
     setShowDetailModal(false);
 
-    Alert.alert('✅ Logged!', 'Detailed session logged');
+    showToast('Detailed session logged', 'success');
   };
 
   const lastSession = sessions[0];
@@ -198,6 +222,53 @@ export default function HomeScreen() {
   const weekSessions = sessions.filter(
     (session) => new Date(session.timestamp) >= weekStartDate
   );
+
+  // Weekly insights for home screen
+  const weeklyInsights = useMemo(() => {
+    if (weekSessions.length === 0) return null;
+
+    // Most used method
+    const methodCounts: Record<string, number> = {};
+    weekSessions.forEach(s => {
+      methodCounts[s.method] = (methodCounts[s.method] || 0) + 1;
+    });
+    const mostUsed = Object.entries(methodCounts).sort((a, b) => b[1] - a[1])[0];
+
+    // Social vs Solo
+    const social = weekSessions.filter(s => s.social).length;
+    const total = weekSessions.length;
+    const socialPercent = Math.round((social / total) * 100);
+
+    // Current streak
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const uniqueDays = new Set(
+      sessions.map(s => {
+        const d = new Date(s.timestamp);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    );
+    const sortedDays = Array.from(uniqueDays).sort((a, b) => b - a);
+    let streak = 0;
+    let expectedDay = today.getTime();
+    for (const day of sortedDays) {
+      if (day === expectedDay) {
+        streak++;
+        expectedDay -= 24 * 60 * 60 * 1000;
+      } else if (day === expectedDay + 24 * 60 * 60 * 1000) {
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    return {
+      mostUsedMethod: mostUsed ? mostUsed[0] : null,
+      socialPercent,
+      streak,
+    };
+  }, [weekSessions, sessions]);
 
   // Determine current level and image
   const getCurrentLevelData = () => {
@@ -296,7 +367,12 @@ export default function HomeScreen() {
     const data: { value: number; label: string; frontColor: string }[] = [];
 
     // Calculate average sessions per day from historical data
-    const allDays = Math.max(1, Math.floor((Date.now() - sessions[sessions.length - 1]?.timestamp || Date.now()) / DAY_MS));
+    const allDays = Math.max(
+      1,
+      Math.floor(
+        (Date.now() - (sessions[sessions.length - 1]?.timestamp || Date.now())) / DAY_MS
+      )
+    );
     const avgSessionsPerDay = sessions.length / allDays;
 
     for (let i = 6; i >= 0; i--) {
@@ -305,7 +381,11 @@ export default function HomeScreen() {
         now.getMonth(),
         now.getDate() - i
       );
-      const dayTimestamp = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      const dayTimestamp = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      ).getTime();
 
       // Check if this day is within the recovery period
       if (dayTimestamp >= sobrietyStartDate) {
@@ -554,12 +634,15 @@ export default function HomeScreen() {
     return (
       <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.greeting, { color: theme.text }]}>T-Break Mode 💙</Text>
+          <Text style={[styles.greeting, { color: theme.text }]}>T-Break Mode</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Stay strong!</Text>
         </View>
 
-        <View style={[styles.timerCard, { backgroundColor: theme.card, borderColor: '#3B82F6' }]}>
-          <Text style={[styles.timerLabel, { color: theme.textSecondary }]}>Time Remaining</Text>
+        <View style={[styles.tbreakTimerCard, { backgroundColor: theme.card, borderColor: '#3B82F6' }]}>
+          <View style={styles.timerHeaderRow}>
+            <Ionicons name="timer-outline" size={20} color="#3B82F6" />
+            <Text style={[styles.timerLabel, { color: theme.textSecondary }]}>Time Remaining</Text>
+          </View>
           <View style={styles.timerDisplay}>
             <View style={styles.timerUnit}>
               <Text style={[styles.timerNumber, { color: '#3B82F6' }]}>{timeRemaining.days}</Text>
@@ -584,7 +667,7 @@ export default function HomeScreen() {
 
         {/* 💰 Savings chart for T-Break */}
         {tbreakSavings.estimated > 0 && (
-          <View style={[styles.savingsCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.tbreakSavingsCard, { backgroundColor: theme.card }]}>
             <Text style={[styles.chartTitle, { color: theme.text }]}>Savings this break</Text>
             <Text style={[styles.savingsAmount, { color: '#22C55E' }]}>
               {currencySymbol}
@@ -621,7 +704,7 @@ export default function HomeScreen() {
 
         {/* No spending chart on t-break screen */}
 
-        <View style={styles.sessionImageContainer}>
+        <View style={styles.tbreakImageContainer}>
           <View style={styles.sessionContent}>
             <Image
               source={image}
@@ -633,18 +716,18 @@ export default function HomeScreen() {
             />
             <View
               style={[
-                styles.messageCard,
+                styles.tbreakMessageCard,
                 { backgroundColor: theme.card, borderColor: theme.border },
               ]}
             >
-              <Text style={[styles.messageText, { color: theme.text }]}>{message}</Text>
+              <Text style={[styles.tbreakMessageText, { color: theme.text }]}>{message}</Text>
             </View>
             {/* Mood Tracker Widget */}
             <MoodTracker />
           </View>
         </View>
 
-        <View style={styles.breakActions}>
+        <View style={styles.tbreakActions}>
           <TouchableOpacity
             style={[styles.slipUpButton, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}
             onPress={handleSlipUp}
@@ -686,7 +769,9 @@ export default function HomeScreen() {
   if (isRecoveryMode) {
     const sobrietyTime = getSobrietyTime();
     const message = tbreakMessage || generateRecoveryMessage();
+    const elapsedMs = sobrietyStartDate ? currentTime - sobrietyStartDate : 0;
 
+    // Compact milestone summary (still used only for counts in stats)
     const healthMilestones = [
       {
         days: 1,
@@ -720,14 +805,208 @@ export default function HomeScreen() {
 
     const achievedCount = healthMilestones.filter((m) => m.achieved).length;
 
+    // Full health timeline (merged from Recovery page)
+    const fullHealthTimeline = [
+      {
+        thresholdMs: 20 * MINUTE_MS,
+        label: '20 minutes',
+        description: 'Heart rate normalizes',
+      },
+      {
+        thresholdMs: 2 * HOUR_MS,
+        label: '2 hours',
+        description: 'Short-term memory begins to improve',
+      },
+      {
+        thresholdMs: 8 * HOUR_MS,
+        label: '8 hours',
+        description: 'Cannabinoid levels drop significantly',
+      },
+      {
+        thresholdMs: 12 * HOUR_MS,
+        label: '12 hours',
+        description: 'Mental clarity starts returning',
+      },
+      {
+        thresholdMs: 24 * HOUR_MS,
+        label: '24 hours',
+        description: 'Lungs begin to clear out residue',
+      },
+      {
+        thresholdMs: 2 * DAY_MS,
+        label: '2 days',
+        description: 'Nerve endings begin to regenerate',
+      },
+      {
+        thresholdMs: 2 * DAY_MS,
+        label: '2 days',
+        description: 'Sense of taste and smell improve',
+      },
+      {
+        thresholdMs: 3 * DAY_MS,
+        label: '3 days',
+        description: 'Brain fog begins to lift',
+      },
+      {
+        thresholdMs: 3 * DAY_MS,
+        label: '3 days',
+        description: 'Breathing becomes easier',
+      },
+      {
+        thresholdMs: 3 * DAY_MS,
+        label: '3 days',
+        description: 'Withdrawal symptoms peak',
+      },
+      {
+        thresholdMs: 5 * DAY_MS,
+        label: '5 days',
+        description: 'Appetite returns to normal',
+      },
+      {
+        thresholdMs: 7 * DAY_MS,
+        label: '1 week',
+        description: 'REM sleep quality improves',
+      },
+      {
+        thresholdMs: 7 * DAY_MS,
+        label: '1 week',
+        description: 'Energy levels increase noticeably',
+      },
+      {
+        thresholdMs: 7 * DAY_MS,
+        label: '1 week',
+        description: 'Physical cravings mostly gone',
+      },
+      {
+        thresholdMs: 10 * DAY_MS,
+        label: '10 days',
+        description: 'Circulation improves throughout body',
+      },
+      {
+        thresholdMs: 14 * DAY_MS,
+        label: '2 weeks',
+        description: 'Mental clarity increases',
+      },
+      {
+        thresholdMs: 14 * DAY_MS,
+        label: '2 weeks',
+        description: 'Physical fitness improves',
+      },
+      {
+        thresholdMs: 14 * DAY_MS,
+        label: '2 weeks',
+        description: 'Skin appearance improves',
+      },
+      {
+        thresholdMs: 21 * DAY_MS,
+        label: '3 weeks',
+        description: 'Mood stabilizes and improves',
+      },
+      {
+        thresholdMs: 21 * DAY_MS,
+        label: '3 weeks',
+        description: 'Anxiety levels decrease',
+      },
+      {
+        thresholdMs: 30 * DAY_MS,
+        label: '1 month',
+        description: 'Tolerance fully reset',
+      },
+      {
+        thresholdMs: 30 * DAY_MS,
+        label: '1 month',
+        description: 'Lung function significantly improved',
+      },
+      {
+        thresholdMs: 30 * DAY_MS,
+        label: '1 month',
+        description: 'Immune system begins strengthening',
+      },
+      {
+        thresholdMs: 45 * DAY_MS,
+        label: '6 weeks',
+        description: 'Dopamine receptors begin healing',
+      },
+      {
+        thresholdMs: 60 * DAY_MS,
+        label: '2 months',
+        description: 'Mental clarity fully restored',
+      },
+      {
+        thresholdMs: 60 * DAY_MS,
+        label: '2 months',
+        description: 'Motivation returns to normal',
+      },
+      {
+        thresholdMs: 90 * DAY_MS,
+        label: '3 months',
+        description: 'Cognitive function fully restored',
+      },
+      {
+        thresholdMs: 90 * DAY_MS,
+        label: '3 months',
+        description: 'Blood circulation normalized',
+      },
+      {
+        thresholdMs: 90 * DAY_MS,
+        label: '3 months',
+        description: 'Lung capacity increased significantly',
+      },
+      {
+        thresholdMs: 120 * DAY_MS,
+        label: '4 months',
+        description: 'Brain chemistry stabilizes',
+      },
+      {
+        thresholdMs: 180 * DAY_MS,
+        label: '6 months',
+        description: 'Long-term brain function restored',
+      },
+      {
+        thresholdMs: 180 * DAY_MS,
+        label: '6 months',
+        description: 'Cardiovascular health improved',
+      },
+      {
+        thresholdMs: 270 * DAY_MS,
+        label: '9 months',
+        description: 'Lung healing continues progressively',
+      },
+      {
+        thresholdMs: 365 * DAY_MS,
+        label: '1 year',
+        description: 'Respiratory health greatly improved',
+      },
+      {
+        thresholdMs: 365 * DAY_MS,
+        label: '1 year',
+        description: 'Overall health significantly better',
+      },
+      {
+        thresholdMs: 730 * DAY_MS,
+        label: '2 years',
+        description: 'Long-term health risks reduced',
+      },
+      {
+        thresholdMs: 1095 * DAY_MS,
+        label: '3 years',
+        description: 'Body fully recovered from effects',
+      },
+      {
+        thresholdMs: 1825 * DAY_MS,
+        label: '5 years',
+        description: 'Health fully normalized',
+      },
+    ];
+
     return (
       <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.greeting, { color: theme.text }]}>Recovery Mode 💚</Text>
+          <Text style={[styles.greeting, { color: theme.text }]}>Recovery Mode</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>You're on the right path</Text>
         </View>
 
-        <View style={[styles.timerCard, { backgroundColor: theme.card, borderColor: '#10B981' }]}>
+        <View style={[styles.recoveryTimerCard, { backgroundColor: theme.card, borderColor: '#10B981' }]}>
           <Text style={[styles.timerLabel, { color: theme.textSecondary }]}>Sober Time</Text>
           <View style={styles.timerDisplay}>
             <View style={styles.timerUnit}>
@@ -753,7 +1032,7 @@ export default function HomeScreen() {
 
         {/* 💰 Savings chart for Recovery */}
         {recoverySavings.estimated > 0 && (
-          <View style={[styles.savingsCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.recoverySavingsCard, { backgroundColor: theme.card }]}>
             <Text style={[styles.chartTitle, { color: theme.text }]}>Money saved in recovery</Text>
             <Text style={[styles.savingsAmount, { color: '#22C55E' }]}>
               {currencySymbol}
@@ -790,7 +1069,7 @@ export default function HomeScreen() {
 
         {/* 💰 Money saved chart – last 7 days (Recovery) */}
         {hasMoneySavedData && (
-          <View style={[styles.spendingCard, { backgroundColor: theme.card }]}>
+          <View style={[styles.recoverySpendingCard, { backgroundColor: theme.card }]}>
             <Text style={[styles.chartTitle, { color: theme.text }]}>💰 Money saved – last 7 days</Text>
             <BarChart
               data={moneySavedChartData}
@@ -815,6 +1094,7 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Recovery stats only */}
         <View style={[styles.recoveryStatsCard, { backgroundColor: theme.card }]}>
           <View style={styles.recoveryStatItem}>
             <Text style={[styles.recoveryStatNumber, { color: '#10B981' }]}>
@@ -845,36 +1125,8 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.recoveryMilestones}>
-          <Text style={[styles.sectionLabel, { color: theme.text }]}>Health Progress</Text>
-          {healthMilestones.map((milestone, index) => (
-            <View
-              key={index}
-              style={[
-                styles.milestoneCard,
-                {
-                  backgroundColor: milestone.achieved ? theme.card : theme.background,
-                  borderColor: milestone.achieved ? '#10B981' : theme.border,
-                  borderWidth: milestone.achieved ? 2 : 1,
-                  opacity: milestone.achieved ? 1 : 0.5,
-                },
-              ]}
-            >
-              <Text style={styles.milestoneCardIcon}>{milestone.icon}</Text>
-              <View style={styles.milestoneCardContent}>
-                <Text style={[styles.milestoneCardTitle, { color: theme.text }]}>
-                  {milestone.title}
-                </Text>
-                <Text style={[styles.milestoneCardDescription, { color: theme.textSecondary }]}>
-                  {milestone.description}
-                </Text>
-              </View>
-              {milestone.achieved && <Text style={styles.milestoneCardCheck}>✓</Text>}
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.sessionImageContainer}>
+        {/* 🦝 Image + message + mood ABOVE Health Timeline */}
+        <View style={styles.recoveryImageContainer}>
           <View style={styles.sessionContent}>
             <Image
               source={level1Image}
@@ -886,18 +1138,59 @@ export default function HomeScreen() {
             />
             <View
               style={[
-                styles.messageCard,
+                styles.recoveryMessageCard,
                 { backgroundColor: theme.card, borderColor: theme.border },
               ]}
             >
-              <Text style={[styles.messageText, { color: theme.text }]}>{message}</Text>
+              <Text style={[styles.recoveryMessageText, { color: theme.text }]}>{message}</Text>
             </View>
             {/* Mood Tracker Widget */}
             <MoodTracker />
           </View>
         </View>
 
-        <View style={styles.breakActions}>
+        {/* Full Health Timeline from Recovery page */}
+        <View style={styles.recoveryMilestones}>
+          <Text style={[styles.sectionLabel, { color: theme.text }]}>Health Timeline</Text>
+          <Text
+            style={[
+              styles.milestoneCardDescription,
+              { color: theme.textSecondary, marginBottom: 8 },
+            ]}
+          >
+            Recovery milestones and health benefits
+          </Text>
+          {fullHealthTimeline.map((milestone, index) => {
+            const achieved = elapsedMs >= milestone.thresholdMs;
+            return (
+              <View
+                key={`${milestone.label}-${index}`}
+                style={[
+                  styles.milestoneCard,
+                  {
+                    backgroundColor: achieved ? theme.card : theme.background,
+                    borderColor: achieved ? '#10B981' : theme.border,
+                    borderWidth: achieved ? 2 : 1,
+                    opacity: achieved ? 1 : 0.5,
+                  },
+                ]}
+              >
+                <View style={styles.milestoneCardContent}>
+                  <Text style={[styles.milestoneCardTitle, { color: theme.text }]}>
+                    {milestone.label}
+                  </Text>
+                  <Text style={[styles.milestoneCardDescription, { color: theme.textSecondary }]}>
+                    {milestone.description}
+                  </Text>
+                </View>
+                {achieved && <Text style={styles.milestoneCardCheck}>✓</Text>}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Exit button stays at the bottom */}
+        <View style={styles.recoveryActions}>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#EF4444' }]}
             onPress={() => {
@@ -926,75 +1219,193 @@ export default function HomeScreen() {
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Ready to track?</Text>
       </View>
 
-      <LinearGradient
-        colors={
-          isLimitExceeded
-            ? ['#FEE2E2', theme.card]
-            : [theme.primary + '10', theme.card]
-        }
-        style={[
-          styles.countCard,
-          {
-            borderColor: isLimitExceeded ? '#EF4444' : theme.primary,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.countNumber,
-            {
-              color: isLimitExceeded ? '#EF4444' : theme.primary,
-            },
-          ]}
-        >
-          {todayCount}
-        </Text>
-        <Text style={[styles.countLabel, { color: theme.textSecondary }]}>sessions today</Text>
-        {settings.dailyLimit && (
-          <Text
+      {/* Flip Card Container */}
+      <TouchableOpacity onPress={handleFlipCard} activeOpacity={0.9} style={styles.flipCardContainer}>
+        <View style={styles.flipCard}>
+          {/* Front Side - Session Counter */}
+          <Animated.View
             style={[
-              styles.limitText,
-              { color: isDailyLimitExceeded ? '#EF4444' : theme.textSecondary },
+              styles.flipCardFace,
+              {
+                transform: [
+                  {
+                    rotateY: flipAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '180deg'],
+                    }),
+                  },
+                ],
+                opacity: flipAnimation.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [1, 0, 0],
+                }),
+              },
             ]}
           >
-            {todayCount} / {settings.dailyLimit} daily limit
-          </Text>
-        )}
-        {settings.weeklyLimit && (
-          <Text
-            style={[
-              styles.limitText,
-              { color: isWeeklyLimitExceeded ? '#EF4444' : theme.textSecondary },
-            ]}
-          >
-            {weekSessions.length} / {settings.weeklyLimit} weekly limit
-          </Text>
-        )}
-        {lastSession && lastMethod && (
-          <View style={styles.lastSessionRow}>
-            <View style={styles.lastSessionContent}>
-              <Text style={[styles.lastSession, { color: theme.textSecondary }]}>Last: </Text>
-              <Image source={methodImages[lastMethod]} style={styles.lastSessionIcon} />
+            <LinearGradient
+              colors={
+                isLimitExceeded
+                  ? (settings.theme === 'dark' ? ['#7F1D1D', '#450A0A'] : ['#FEE2E2', '#FECACA'])
+                  : [theme.primary + '10', theme.card]
+              }
+              style={[
+                styles.countCard,
+                {
+                  borderColor: isLimitExceeded ? '#EF4444' : theme.primary,
+                },
+              ]}
+            >
               <Text
                 style={[
-                  styles.lastSession,
-                  { color: theme.textSecondary },
+                  styles.countNumber,
+                  {
+                    color: isLimitExceeded ? '#EF4444' : theme.primary,
+                  },
                 ]}
               >
-                {new Date(lastSession.timestamp).toLocaleTimeString('en-US', {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
+                {todayCount}
               </Text>
-            </View>
-            <TouchableOpacity onPress={handleUndo} style={styles.undoButton}>
-              <Text style={[styles.undoText, { color: theme.textSecondary }]}>undo</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </LinearGradient>
+              <Text style={[styles.countLabel, { color: isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary }]}>sessions today</Text>
+              {settings.dailyLimit && (
+                <Text
+                  style={[
+                    styles.limitText,
+                    { color: isDailyLimitExceeded ? (settings.theme === 'dark' ? '#FCA5A5' : '#EF4444') : (isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary) },
+                  ]}
+                >
+                  {todayCount} / {settings.dailyLimit} daily limit
+                </Text>
+              )}
+              {settings.weeklyLimit && (
+                <Text
+                  style={[
+                    styles.limitText,
+                    { color: isWeeklyLimitExceeded ? (settings.theme === 'dark' ? '#FCA5A5' : '#EF4444') : (isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary) },
+                  ]}
+                >
+                  {weekSessions.length} / {settings.weeklyLimit} weekly limit
+                </Text>
+              )}
+              {lastSession && lastMethod && (
+                <View style={styles.lastSessionRow}>
+                  <View style={styles.lastSessionContent}>
+                    <Text style={[styles.lastSession, { color: isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary }]}>Last: </Text>
+                    <Image source={methodImages[lastMethod]} style={styles.lastSessionIcon} />
+                    <Text
+                      style={[
+                        styles.lastSession,
+                        { color: isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary },
+                      ]}
+                    >
+                      {new Date(lastSession.timestamp).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                    <TouchableOpacity onPress={handleUndo} style={styles.undoButton}>
+                      <Text style={[styles.undoText, { color: isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary }]}>undo</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              <Text style={[styles.tapHint, { color: isLimitExceeded && settings.theme === 'dark' ? '#FCA5A5' : theme.textSecondary }]}>
+                Tap for weekly stats
+              </Text>
+            </LinearGradient>
+          </Animated.View>
 
-      {/* 👇 No spending chart in normal mode anymore */}
+          {/* Back Side - Weekly Insights */}
+          <Animated.View
+            style={[
+              styles.flipCardFace,
+              styles.flipCardBack,
+              {
+                transform: [
+                  {
+                    rotateY: flipAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['180deg', '360deg'],
+                    }),
+                  },
+                ],
+                opacity: flipAnimation.interpolate({
+                  inputRange: [0, 0.5, 0.51, 1],
+                  outputRange: [0, 0, 1, 1],
+                }),
+              },
+            ]}
+          >
+            <LinearGradient
+                colors={[theme.primary + '10', theme.card]}
+                style={[styles.insightsCardFlipped, { borderColor: theme.primary }]}
+              >
+                <Text style={[styles.insightsTitle, { color: theme.text }]}>This Week</Text>
+
+                {/* Weekly activity mini chart */}
+                <View style={styles.weeklyBars}>
+                  {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - (6 - dayOffset));
+                    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+                    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+                    const daySessions = sessions.filter(s => s.timestamp >= dayStart && s.timestamp < dayEnd);
+                    const maxSessions = Math.max(...[0, 1, 2, 3, 4, 5, 6].map(offset => {
+                      const d = new Date();
+                      d.setDate(d.getDate() - (6 - offset));
+                      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                      const end = start + 24 * 60 * 60 * 1000;
+                      return sessions.filter(s => s.timestamp >= start && s.timestamp < end).length;
+                    }), 1);
+                    const barHeight = daySessions.length > 0 ? (daySessions.length / maxSessions) * 40 : 2;
+                    const dayLetter = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][date.getDay()];
+
+                    return (
+                      <View key={dayOffset} style={styles.weeklyBarContainer}>
+                        <View style={[styles.weeklyBar, {
+                          height: barHeight,
+                          backgroundColor: theme.primary,
+                          opacity: daySessions.length > 0 ? 1 : 0.2,
+                        }]} />
+                        <Text style={[styles.weeklyBarLabel, { color: theme.textSecondary }]}>{dayLetter}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.insightsRow}>
+                  <View style={styles.insightItem}>
+                    <Ionicons name="flame" size={20} color={theme.primary} />
+                    <Text style={[styles.insightLabel, { color: theme.textSecondary }]}>Top</Text>
+                    <Text style={[styles.insightValue, { color: theme.text }]}>
+                      {weeklyInsights?.mostUsedMethod ?
+                        weeklyInsights.mostUsedMethod.charAt(0).toUpperCase() + weeklyInsights.mostUsedMethod.slice(1)
+                        : 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.insightDivider} />
+                  <View style={styles.insightItem}>
+                    <Ionicons name="people" size={20} color={theme.primary} />
+                    <Text style={[styles.insightLabel, { color: theme.textSecondary }]}>Social</Text>
+                    <Text style={[styles.insightValue, { color: theme.text }]}>
+                      {weeklyInsights?.socialPercent ?? 0}%
+                    </Text>
+                  </View>
+                  <View style={styles.insightDivider} />
+                  <View style={styles.insightItem}>
+                    <Ionicons name="calendar" size={20} color={theme.primary} />
+                    <Text style={[styles.insightLabel, { color: theme.textSecondary }]}>Streak</Text>
+                    <Text style={[styles.insightValue, { color: theme.text }]}>
+                      {weeklyInsights?.streak ?? 0} {(weeklyInsights?.streak ?? 0) === 1 ? 'day' : 'days'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.tapHint, { color: theme.textSecondary }]}>
+                  Tap to return
+                </Text>
+              </LinearGradient>
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.instructions}>
         <Text style={[styles.instructionText, { color: theme.textSecondary }]}>
@@ -1021,27 +1432,23 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.sessionImageContainer}>
-        <View style={styles.sessionContent}>
-          <Image
-            source={currentImage}
-            style={{
-              width: 200,
-              height: 200,
-              alignSelf: 'center',
-            }}
-          />
-          <View
-            style={[
-              styles.messageCard,
-              { backgroundColor: theme.card, borderColor: theme.border },
-            ]}
-          >
-            <Text style={[styles.messageText, { color: theme.text }]}>{currentMessage}</Text>
-          </View>
-          {/* Mood Tracker Widget */}
-          <MoodTracker />
+        <Image
+          source={currentImage}
+          style={styles.raccoonImage}
+          resizeMode="contain"
+        />
+        <View
+          style={[
+            styles.messageCard,
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.messageText, { color: theme.text }]}>{currentMessage}</Text>
         </View>
       </View>
+
+      {/* Mood Tracker Widget - Moved outside to prevent cutoff */}
+      <MoodTracker />
 
       <Modal
         visible={showDetailModal}
@@ -1078,62 +1485,62 @@ export default function HomeScreen() {
                   <Text style={[styles.inputLabel, { color: theme.text }]}>
                     🌿 Strain (optional)
                   </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.inputBackground,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={strain}
-                  onChangeText={setStrain}
-                  placeholder="e.g., Blue Dream"
-                  placeholderTextColor={theme.textSecondary}
-                />
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.inputBackground,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    value={strain}
+                    onChangeText={setStrain}
+                    placeholder="e.g., Blue Dream"
+                    placeholderTextColor={theme.textSecondary}
+                  />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: theme.text }]}>
                     ⚖️ Amount in grams (optional)
                   </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.inputBackground,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder="e.g., 1.5"
-                  keyboardType="decimal-pad"
-                  placeholderTextColor={theme.textSecondary}
-                />
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.inputBackground,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    value={amount}
+                    onChangeText={setAmount}
+                    placeholder="e.g., 1.5"
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={theme.textSecondary}
+                  />
                 </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={[styles.inputLabel, { color: theme.text }]}>
                     💰 Cost {currencySymbol} (optional)
                   </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    {
-                      backgroundColor: theme.inputBackground,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={cost}
-                  onChangeText={setCost}
-                  placeholder="e.g., 15"
-                  keyboardType="decimal-pad"
-                  placeholderTextColor={theme.textSecondary}
-                />
+                  <TextInput
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.inputBackground,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    value={cost}
+                    onChangeText={setCost}
+                    placeholder="e.g., 15"
+                    keyboardType="decimal-pad"
+                    placeholderTextColor={theme.textSecondary}
+                  />
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1141,115 +1548,53 @@ export default function HomeScreen() {
                     <Text style={[styles.inputLabel, { color: theme.text }]}>
                       👥 With friends?
                     </Text>
-                  <Switch
-                    value={isSocial}
-                    onValueChange={setIsSocial}
-                    trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
-                    thumbColor={isSocial ? '#00D084' : '#F3F4F6'}
-                  />
+                    <Switch
+                      value={isSocial}
+                      onValueChange={setIsSocial}
+                      trackColor={{ false: '#D1D5DB', true: '#A7F3D0' }}
+                      thumbColor={isSocial ? '#00D084' : '#F3F4F6'}
+                    />
                   </View>
                 </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: theme.text }]}>
-                    📝 Notes (optional)
-                  </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    styles.textArea,
-                    {
-                      backgroundColor: theme.inputBackground,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="How are you feeling?"
-                  placeholderTextColor={theme.textSecondary}
-                  multiline
-                  numberOfLines={3}
-                />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={[styles.inputLabel, { color: theme.text }]}>
-                    😊 Mood (optional)
-                  </Text>
-                <View style={styles.moodGrid}>
-                  {[
-                    { value: 'relaxed' as Mood, emoji: '😌', label: 'Relaxed' },
-                    { value: 'energized' as Mood, emoji: '⚡', label: 'Energized' },
-                    { value: 'creative' as Mood, emoji: '🎨', label: 'Creative' },
-                    { value: 'focused' as Mood, emoji: '🎯', label: 'Focused' },
-                    { value: 'social' as Mood, emoji: '🗣️', label: 'Social' },
-                    { value: 'sleepy' as Mood, emoji: '😴', label: 'Sleepy' },
-                    { value: 'euphoric' as Mood, emoji: '😄', label: 'Euphoric' },
-                    { value: 'calm' as Mood, emoji: '🧘', label: 'Calm' },
-                  ].map((mood) => (
-                    <TouchableOpacity
-                      key={mood.value}
-                      style={[
-                        styles.moodButton,
-                        {
-                          backgroundColor:
-                            selectedMood === mood.value ? theme.primary : theme.inputBackground,
-                          borderColor: selectedMood === mood.value ? theme.primary : theme.border,
-                        },
-                      ]}
-                      onPress={() =>
-                        setSelectedMood(selectedMood === mood.value ? undefined : mood.value)
-                      }
-                    >
-                      <Text style={styles.moodEmoji}>{mood.emoji}</Text>
-                      <Text
-                        style={[
-                          styles.moodLabel,
-                          {
-                            color: selectedMood === mood.value ? '#FFFFFF' : theme.text,
-                          },
-                        ]}
-                      >
-                        {mood.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                </View>
-
                 <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    styles.cancelButton,
-                    {
-                      backgroundColor: theme.inputBackground,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  onPress={() => setShowDetailModal(false)}
-                >
-                  <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    styles.logButton,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={handleDetailedLog}
-                >
-                  <Text style={styles.logButtonText}>Log Session</Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalButton,
+                      styles.cancelButton,
+                      {
+                        backgroundColor: theme.inputBackground,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    onPress={() => setShowDetailModal(false)}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalButton,
+                      styles.logButton,
+                      { backgroundColor: theme.primary },
+                    ]}
+                    onPress={handleDetailedLog}
+                  >
+                    <Text style={styles.logButtonText}>Log Session</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </ScrollView>
           </View>
         </View>
       </Modal>
+      <ToastNotification
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
     </ScrollView>
   );
 }
@@ -1260,22 +1605,23 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 20,
+    marginTop: 50,
+    marginBottom: 16,
     paddingHorizontal: 20,
   },
   greeting: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     marginTop: 4,
   },
+  // FLIP CARD FRONT SIDE - Session Counter
   countCard: {
-    marginHorizontal: 20,
-    borderRadius: 20,
-    padding: 24,
+    marginHorizontal: 20,        // EDIT: Left/right spacing of card
+    borderRadius: 20,             // EDIT: Corner roundness
+    padding: 18,                  // EDIT: Inside spacing (affects card height)
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1283,23 +1629,25 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
     borderWidth: 2,
+    minHeight: 2,               // EDIT: Minimum card height
   },
   countNumber: {
-    fontSize: 64,
+    fontSize: 100,                // EDIT: Session number size
     fontWeight: 'bold',
   },
   countLabel: {
-    fontSize: 16,
-    marginTop: 8,
+    fontSize: 16,                 // EDIT: "sessions today" text size
+    marginTop: 1,                 // EDIT: Space above label
+    fontWeight: 'bold',
   },
   lastSession: {
-    fontSize: 14,
+    fontSize: 16,
   },
   lastSessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
+    marginTop: 10,                // EDIT: Space above "Last session" row
     gap: 12,
   },
   lastSessionContent: {
@@ -1314,22 +1662,131 @@ const styles = StyleSheet.create({
   undoButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
+    marginLeft: 8,
   },
   undoText: {
-    fontSize: 12,
+    fontSize: 16,
     textDecorationLine: 'underline',
   },
   limitText: {
-    fontSize: 14,
-    marginTop: 8,
+    fontSize: 12,                 // EDIT: Daily/weekly limit text size
+    marginTop: 8,                 // EDIT: Space above limit text
     fontWeight: '600',
   },
-  instructions: {
-    marginTop: 20,
-    marginBottom: 16,
-    paddingHorizontal: 20,
+  insightsCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  insightsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  insightsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  insightItem: {
+    flex: 1,
     alignItems: 'center',
     gap: 4,
+  },
+  insightDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E5E7EB',
+    opacity: 0.3,
+  },
+  insightLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  insightValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  flipCardContainer: {
+    marginHorizontal: 20,
+    marginBottom: 0,
+  },
+  flipCard: {
+    width: '100%',
+    position: 'relative',
+  },
+  flipCardFace: {
+    width: '100%',
+    backfaceVisibility: 'hidden',
+  },
+  flipCardBack: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+  },
+  // FLIP CARD BACK SIDE - Weekly Insights
+  insightsCardFlipped: {
+    borderRadius: 20,
+    padding: 18,                  // EDIT: Inside spacing (affects card height)
+    borderWidth: 2,
+    minHeight: 240,               // EDIT: Minimum card height (MUST match countCard)
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  weeklyBars: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'flex-end',
+    height: 60,                   // EDIT: Height of bar chart (affects card height)
+    width: '100%',
+    marginVertical: 16,           // EDIT: Space above/below bar chart
+    paddingHorizontal: 8,
+  },
+  weeklyBarContainer: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flex: 1,
+    height: '100%',
+  },
+  weeklyBar: {
+    width: 16,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  weeklyBarLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  tapHint: {
+    fontSize: 11,                 // EDIT: "Tap for weekly stats" text size
+    marginTop: 12,                // EDIT: Space above hint (affects card height)
+    textAlign: 'center',
+    opacity: 0.6,
+    fontStyle: 'italic',
+  },
+  instructions: {
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 2,
   },
   instructionText: {
     fontSize: 14,
@@ -1341,16 +1798,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 20,
-    gap: 12,
+    gap: 10,
     justifyContent: 'center',
+    zIndex: 10,
   },
   methodButton: {
     width: '30%',
     aspectRatio: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1358,12 +1816,12 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   methodIcon: {
-    width: 56,
-    height: 56,
-    marginBottom: 12,
+    width: 48,
+    height: 48,
+    marginBottom: 8,
   },
   methodLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   // 💸 Spending / Savings cards
@@ -1520,19 +1978,27 @@ const styles = StyleSheet.create({
   },
   sessionImageContainer: {
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 30,
+    marginTop: -130,
+    marginBottom: 8,
     paddingHorizontal: 20,
+    zIndex: -1,
   },
   sessionContent: {
     alignItems: 'center',
-    gap: 16,
+    width: '100%',
+  },
+  raccoonImage: {
+    width: 350,
+    height: 350,
+    alignSelf: 'center',
   },
   messageCard: {
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderWidth: 1,
+    marginTop: -120,
+    marginHorizontal: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1557,10 +2023,16 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 2,
   },
+  timerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   timerLabel: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
+    marginBottom: 0,
   },
   timerDisplay: {
     flexDirection: 'row',
@@ -1658,6 +2130,7 @@ const styles = StyleSheet.create({
     padding: 20,
     marginHorizontal: 20,
     marginTop: 20,
+    marginBottom: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1746,5 +2219,155 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.2,
+  },
+  premiumFlipOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumFlipLockContent: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  premiumFlipLockText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+  },
+  premiumFlipLockSubtext: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  // 🧊 T-Break Mode Specific Styles
+  tbreakTimerCard: {
+    marginHorizontal: 20,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 2,
+  },
+  tbreakSavingsCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  tbreakImageContainer: {
+    alignItems: 'center',
+    marginTop: -10,
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  tbreakActions: {
+    paddingHorizontal: 20,
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  tbreakMessageCard: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    marginTop: -40,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tbreakMessageText: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  // 💚 Recovery Mode Specific Styles
+  recoveryTimerCard: {
+    marginHorizontal: 20,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 2,
+  },
+  recoverySavingsCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  recoverySpendingCard: {
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  recoveryImageContainer: {
+    alignItems: 'center',
+    marginTop: -30,
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  recoveryActions: {
+    paddingHorizontal: 20,
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  recoveryMessageCard: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    marginTop: -40,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  recoveryMessageText: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3,
   },
 });

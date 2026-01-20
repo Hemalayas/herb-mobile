@@ -1,6 +1,47 @@
 import { Session, Badge, TBreak } from '../types';
 import { differenceInDays, startOfDay, getHours } from 'date-fns';
 
+// Exchange rates to USD (approximate, updated periodically)
+const EXCHANGE_RATES_TO_USD: Record<string, number> = {
+  'USD': 1,
+  'EUR': 0.92,
+  'GBP': 0.79,
+  'ZAR': 18.50,  // South African Rand
+  'CAD': 1.36,
+  'AUD': 1.52,
+  'JPY': 149.50,
+  'CNY': 7.24,
+  'INR': 83.12,
+  'MXN': 17.05,
+  'BRL': 4.97,
+  'CHF': 0.88,
+  'SEK': 10.37,
+  'NZD': 1.63,
+  'SGD': 1.34,
+  'HKD': 7.82,
+  'NOK': 10.68,
+  'KRW': 1308.50,
+  'TRY': 32.15,
+  'RUB': 92.50,
+  'PLN': 4.02,
+  'THB': 35.20,
+  'IDR': 15625,
+  'MYR': 4.72,
+  'PHP': 55.80,
+  'DKK': 6.87,
+  'CZK': 22.95,
+  'ILS': 3.66,
+  'CLP': 975,
+  'AED': 3.67,
+  'COP': 4180,
+};
+
+// Convert USD amount to local currency
+const convertUSDToLocalCurrency = (usdAmount: number, currency: string): number => {
+  const rate = EXCHANGE_RATES_TO_USD[currency] || 1;
+  return usdAmount * rate;
+};
+
 // Badge image mapping
 export const getBadgeImage = (imageId: string) => {
   const images: Record<string, any> = {
@@ -65,6 +106,7 @@ export interface BadgeDefinition {
   imageId: string;
   category: 'sobriety' | 'tbreak' | 'usage' | 'time' | 'special' | 'variety' | 'financial' | 'strains' | 'volume';
   requirement: number;
+  isPremium?: boolean; // If true, requires premium subscription
 }
 
 const getDaysSinceLastSession = (sessions: Session[]): number => {
@@ -74,83 +116,84 @@ const getDaysSinceLastSession = (sessions: Session[]): number => {
 };
 
 export const BADGE_DEFINITIONS: BadgeDefinition[] = [
-  // SOBRIETY
-  { id: '3_days_sober', name: '3 Days Sober', description: '3 days without consumption', imageId: '3_days_sober', category: 'sobriety', requirement: 3 },
-  { id: '1_week_sober', name: '1 Week Sober', description: '7 days without consumption', imageId: '1_week_sober', category: 'sobriety', requirement: 7 },
-  { id: '2_weeks_sober', name: '2 Weeks Sober', description: '14 days without consumption', imageId: '2_weeks_sober', category: 'sobriety', requirement: 14 },
-  { id: '1_month_sober', name: '1 Month Sober', description: '30 days without consumption', imageId: '1_month_sober', category: 'sobriety', requirement: 30 },
-  { id: '2_months_sober', name: '2 Months Sober', description: '60 days without consumption', imageId: '2_months_sober', category: 'sobriety', requirement: 60 },
-  { id: '3_months_sober', name: '3 Months Sober', description: '90 days without consumption', imageId: '3_months_sober', category: 'sobriety', requirement: 90 },
-  { id: '6_months_sober', name: '6 Months Sober', description: '180 days without consumption', imageId: '6_months_sober', category: 'sobriety', requirement: 180 },
-  { id: '1_year_sober', name: '1 Year Sober', description: '365 days without consumption', imageId: '1_year_sober', category: 'sobriety', requirement: 365 },
-  { id: '2_years_sober', name: '2 Years Sober', description: '730 days without consumption', imageId: '2_years_sober', category: 'sobriety', requirement: 730 },
-  { id: '3_years_sober', name: '3 Years Sober', description: '1095 days without consumption', imageId: '3_years_sober', category: 'sobriety', requirement: 1095 },
-  { id: '4_years_sober', name: '4 Years Sober', description: '1460 days without consumption', imageId: '4_years_sober', category: 'sobriety', requirement: 1460 },
-  { id: '5_years_sober', name: '5 Years Sober', description: '1825 days without consumption', imageId: '5_years_sober', category: 'sobriety', requirement: 1825 },
-  
-  // T-BREAK
-  { id: 'starting', name: 'Starting', description: 'Begin your journey', imageId: 'starting', category: 'tbreak', requirement: 1 },
-  { id: 't_break_complete', name: 'T-Break Complete', description: 'Complete a T-Break', imageId: 't_break_complete', category: 'tbreak', requirement: 1 },
-  { id: 'clean_slate', name: 'Clean Slate', description: '7 days sober during t-break', imageId: 'clean_slate', category: 'tbreak', requirement: 7 },
-  { id: 'lung_capacity', name: 'Lung Capacity', description: 'Lungs improving (3+ days sober)', imageId: 'lung_capacity', category: 'tbreak', requirement: 3 },
-  { id: 'rem', name: 'REM Sleep', description: 'Sleep normalizing (7+ days sober)', imageId: 'rem', category: 'tbreak', requirement: 7 },
-  { id: 'clarity', name: 'Clarity', description: 'Mental clarity returning (30+ days sober)', imageId: 'clarity', category: 'tbreak', requirement: 30 },
-  { id: 'retired', name: 'Retired', description: 'Enter recovery mode', imageId: 'retired', category: 'tbreak', requirement: 1 },
+  // SOBRIETY - Free for first 3 months, then premium
+  { id: '3_days_sober', name: '3 Days Sober', description: '3 days without consumption', imageId: '3_days_sober', category: 'sobriety', requirement: 3, isPremium: false },
+  { id: '1_week_sober', name: '1 Week Sober', description: '7 days without consumption', imageId: '1_week_sober', category: 'sobriety', requirement: 7, isPremium: false },
+  { id: '2_weeks_sober', name: '2 Weeks Sober', description: '14 days without consumption', imageId: '2_weeks_sober', category: 'sobriety', requirement: 14, isPremium: false },
+  { id: '1_month_sober', name: '1 Month Sober', description: '30 days without consumption', imageId: '1_month_sober', category: 'sobriety', requirement: 30, isPremium: false },
+  { id: '2_months_sober', name: '2 Months Sober', description: '60 days without consumption', imageId: '2_months_sober', category: 'sobriety', requirement: 60, isPremium: false },
+  { id: '3_months_sober', name: '3 Months Sober', description: '90 days without consumption', imageId: '3_months_sober', category: 'sobriety', requirement: 90, isPremium: false },
+  { id: '6_months_sober', name: '6 Months Sober', description: '180 days without consumption', imageId: '6_months_sober', category: 'sobriety', requirement: 180, isPremium: true },
+  { id: '1_year_sober', name: '1 Year Sober', description: '365 days without consumption', imageId: '1_year_sober', category: 'sobriety', requirement: 365, isPremium: true },
+  { id: '2_years_sober', name: '2 Years Sober', description: '730 days without consumption', imageId: '2_years_sober', category: 'sobriety', requirement: 730, isPremium: true },
+  { id: '3_years_sober', name: '3 Years Sober', description: '1095 days without consumption', imageId: '3_years_sober', category: 'sobriety', requirement: 1095, isPremium: true },
+  { id: '4_years_sober', name: '4 Years Sober', description: '1460 days without consumption', imageId: '4_years_sober', category: 'sobriety', requirement: 1460, isPremium: true },
+  { id: '5_years_sober', name: '5 Years Sober', description: '1825 days without consumption', imageId: '5_years_sober', category: 'sobriety', requirement: 1825, isPremium: true },
 
-  // USAGE
-  { id: 'first_spark', name: 'First Spark', description: 'Log your first session', imageId: 'first_spark', category: 'usage', requirement: 1 },
-  { id: 'lore_master', name: 'Lore Master', description: '100 total sessions', imageId: 'lore_master', category: 'usage', requirement: 100 },
-  { id: 'blinker', name: 'Blinker', description: '50 pen sessions', imageId: 'blinker', category: 'usage', requirement: 50 },
-  { id: 'ripper', name: 'Ripper', description: '100 bong sessions', imageId: 'ripper', category: 'usage', requirement: 100 },
-  { id: 'paper_mache', name: 'Paper Mache', description: '50 joint sessions', imageId: 'paper_mache', category: 'usage', requirement: 50 },
-  { id: 'dab', name: 'Dab Master', description: '50 dab sessions', imageId: 'dab', category: 'usage', requirement: 50 },
-  { id: 'munchies', name: 'Munchies', description: '50 edible sessions', imageId: 'munchies', category: 'usage', requirement: 50 },
-  { id: 'iron_lungs', name: 'Iron Lungs', description: 'Only bong sessions for a week', imageId: 'iron_lungs', category: 'usage', requirement: 7 },
-  
-  // TIME
-  { id: 'night_owl', name: 'Night Owl', description: 'Log session after 10pm', imageId: 'night_owl', category: 'time', requirement: 1 },
-  { id: 'early_bird', name: 'Early Bird', description: 'Log session before 10am', imageId: 'early_bird', category: 'time', requirement: 1 },
-  { id: '420', name: '4:20 Club', description: '???', imageId: '420', category: 'time', requirement: 1 },
-  { id: 'weekend_warrior', name: 'Weekend Warrior', description: 'Log weekend sessions', imageId: 'weekend_warrior', category: 'time', requirement: 1 },
-  
-  // SPECIAL
-  { id: 'uh_oh', name: 'Uh Oh', description: 'Over your limit', imageId: 'uh_oh', category: 'special', requirement: 1 },
-  { id: 'phoenix', name: 'Phoenix', description: 'Complete a T-Break after a slip-up', imageId: 'phoenix', category: 'special', requirement: 1 },
-  { id: 'according_to_plan', name: 'According to Plan', description: 'Under limit 7 days', imageId: 'according_to_plan', category: 'special', requirement: 7 },
-  
-  // VARIETY
-  { id: 'mixologist', name: 'Mixologist', description: '3 methods in one day', imageId: 'mixologist', category: 'variety', requirement: 1 },
-  { id: 'the_scientist', name: 'The Scientist', description: 'Try all 5 consumption methods', imageId: 'the_scientist', category: 'variety', requirement: 5 },
+  // T-BREAK - Starting is free, rest are premium
+  { id: 'starting', name: 'Starting', description: 'Begin your journey', imageId: 'starting', category: 'tbreak', requirement: 1, isPremium: false },
+  { id: 't_break_complete', name: 'T-Break Complete', description: 'Complete a T-Break', imageId: 't_break_complete', category: 'tbreak', requirement: 1, isPremium: true },
+  { id: 'clean_slate', name: 'Clean Slate', description: '7 days sober during t-break', imageId: 'clean_slate', category: 'tbreak', requirement: 7, isPremium: true },
+  { id: 'lung_capacity', name: 'Lung Capacity', description: 'Lungs improving (3+ days sober)', imageId: 'lung_capacity', category: 'tbreak', requirement: 3, isPremium: true },
+  { id: 'rem', name: 'REM Sleep', description: 'Sleep normalizing (7+ days sober)', imageId: 'rem', category: 'tbreak', requirement: 7, isPremium: true },
+  { id: 'clarity', name: 'Clarity', description: 'Mental clarity returning (30+ days sober)', imageId: 'clarity', category: 'tbreak', requirement: 30, isPremium: true },
+  { id: 'retired', name: 'Retired', description: 'Enter recovery mode', imageId: 'retired', category: 'tbreak', requirement: 1, isPremium: true },
 
-  // FINANCIAL
-  { id: 'high_roller', name: 'High Roller', description: '$500 spent', imageId: 'high_roller', category: 'financial', requirement: 500 },
-  { id: 'whale', name: 'Whale', description: '$1000 spent', imageId: 'whale', category: 'financial', requirement: 1000 },
-  { id: 'loot_hoarder', name: 'Loot Hoarder', description: '$100 saved', imageId: 'loot_hoarder', category: 'financial', requirement: 100 },
-  
-  // STRAINS
-  { id: 'botanist', name: 'Botanist', description: '5 unique strains', imageId: 'botanist', category: 'strains', requirement: 5 },
-  { id: 'terpene_taster', name: 'Terpene Taster', description: '10 unique strains', imageId: 'terpene_taster', category: 'strains', requirement: 10 },
-  { id: 'strain_hunter', name: 'Strain Hunter', description: '25 unique strains', imageId: 'strain_hunter', category: 'strains', requirement: 25 },
-  
-  // VOLUME
-  { id: 'eighth', name: '1/8 oz', description: '3.5g total', imageId: 'eighth', category: 'volume', requirement: 3.5 },
-  { id: 'quarter_oz', name: '1/4 oz', description: '7g total', imageId: 'quarter_oz', category: 'volume', requirement: 7 },
-  { id: 'half_oz', name: '1/2 oz', description: '14g total', imageId: 'half_oz', category: 'volume', requirement: 14 },
-  { id: '1_oz', name: '1 oz', description: '28g total', imageId: '1_oz', category: 'volume', requirement: 28 },
-  { id: 'quarter_pound', name: '1/4 lb', description: '113g total', imageId: 'quarter_pound', category: 'volume', requirement: 113 },
-  { id: '1_pound', name: '1 lb', description: '453g total', imageId: '1_pound', category: 'volume', requirement: 453 },
-  
-  // SOCIAL
-  { id: 'social_butterfly', name: 'Social Butterfly', description: 'Session with friends', imageId: 'social_butterfly', category: 'special', requirement: 1 },
-  { id: 'lone_wolf', name: 'Lone Wolf', description: 'Solo session', imageId: 'lone_wolf', category: 'special', requirement: 1 },
+  // USAGE - All premium
+  { id: 'first_spark', name: 'First Spark', description: 'Log your first session', imageId: 'first_spark', category: 'usage', requirement: 1, isPremium: true },
+  { id: 'lore_master', name: 'Lore Master', description: '100 total sessions', imageId: 'lore_master', category: 'usage', requirement: 100, isPremium: true },
+  { id: 'blinker', name: 'Blinker', description: '50 pen sessions', imageId: 'blinker', category: 'usage', requirement: 50, isPremium: true },
+  { id: 'ripper', name: 'Ripper', description: '100 bong sessions', imageId: 'ripper', category: 'usage', requirement: 100, isPremium: true },
+  { id: 'paper_mache', name: 'Paper Mache', description: '50 joint sessions', imageId: 'paper_mache', category: 'usage', requirement: 50, isPremium: true },
+  { id: 'dab', name: 'Dab Master', description: '50 dab sessions', imageId: 'dab', category: 'usage', requirement: 50, isPremium: true },
+  { id: 'munchies', name: 'Munchies', description: '50 edible sessions', imageId: 'munchies', category: 'usage', requirement: 50, isPremium: true },
+  { id: 'iron_lungs', name: 'Iron Lungs', description: 'Only bong sessions for a week', imageId: 'iron_lungs', category: 'usage', requirement: 7, isPremium: true },
+
+  // TIME - All premium
+  { id: 'night_owl', name: 'Night Owl', description: 'Log session after 10pm', imageId: 'night_owl', category: 'time', requirement: 1, isPremium: true },
+  { id: 'early_bird', name: 'Early Bird', description: 'Log session before 10am', imageId: 'early_bird', category: 'time', requirement: 1, isPremium: true },
+  { id: '420', name: '4:20 Club', description: '???', imageId: '420', category: 'time', requirement: 1, isPremium: true },
+  { id: 'weekend_warrior', name: 'Weekend Warrior', description: 'Log weekend sessions', imageId: 'weekend_warrior', category: 'time', requirement: 1, isPremium: true },
+
+  // SPECIAL - All premium
+  { id: 'uh_oh', name: 'Uh Oh', description: 'Over your limit', imageId: 'uh_oh', category: 'special', requirement: 1, isPremium: true },
+  { id: 'phoenix', name: 'Phoenix', description: 'Complete a T-Break after a slip-up', imageId: 'phoenix', category: 'special', requirement: 1, isPremium: true },
+  { id: 'according_to_plan', name: 'According to Plan', description: 'Under limit 7 days', imageId: 'according_to_plan', category: 'special', requirement: 7, isPremium: true },
+
+  // VARIETY - All premium
+  { id: 'mixologist', name: 'Mixologist', description: '3 methods in one day', imageId: 'mixologist', category: 'variety', requirement: 1, isPremium: true },
+  { id: 'the_scientist', name: 'The Scientist', description: 'Try all 5 consumption methods', imageId: 'the_scientist', category: 'variety', requirement: 5, isPremium: true },
+
+  // FINANCIAL - All premium
+  { id: 'high_roller', name: 'High Roller', description: '$500 spent', imageId: 'high_roller', category: 'financial', requirement: 500, isPremium: true },
+  { id: 'whale', name: 'Whale', description: '$1000 spent', imageId: 'whale', category: 'financial', requirement: 1000, isPremium: true },
+  { id: 'loot_hoarder', name: 'Loot Hoarder', description: '$100 saved', imageId: 'loot_hoarder', category: 'financial', requirement: 100, isPremium: true },
+
+  // STRAINS - All premium
+  { id: 'botanist', name: 'Botanist', description: '5 unique strains', imageId: 'botanist', category: 'strains', requirement: 5, isPremium: true },
+  { id: 'terpene_taster', name: 'Terpene Taster', description: '10 unique strains', imageId: 'terpene_taster', category: 'strains', requirement: 10, isPremium: true },
+  { id: 'strain_hunter', name: 'Strain Hunter', description: '25 unique strains', imageId: 'strain_hunter', category: 'strains', requirement: 25, isPremium: true },
+
+  // VOLUME - All premium
+  { id: 'eighth', name: '1/8 oz', description: '3.5g total', imageId: 'eighth', category: 'volume', requirement: 3.5, isPremium: true },
+  { id: 'quarter_oz', name: '1/4 oz', description: '7g total', imageId: 'quarter_oz', category: 'volume', requirement: 7, isPremium: true },
+  { id: 'half_oz', name: '1/2 oz', description: '14g total', imageId: 'half_oz', category: 'volume', requirement: 14, isPremium: true },
+  { id: '1_oz', name: '1 oz', description: '28g total', imageId: '1_oz', category: 'volume', requirement: 28, isPremium: true },
+  { id: 'quarter_pound', name: '1/4 lb', description: '113g total', imageId: 'quarter_pound', category: 'volume', requirement: 113, isPremium: true },
+  { id: '1_pound', name: '1 lb', description: '453g total', imageId: '1_pound', category: 'volume', requirement: 453, isPremium: true },
+
+  // SOCIAL - All premium
+  { id: 'social_butterfly', name: 'Social Butterfly', description: 'Session with friends', imageId: 'social_butterfly', category: 'special', requirement: 1, isPremium: true },
+  { id: 'lone_wolf', name: 'Lone Wolf', description: 'Solo session', imageId: 'lone_wolf', category: 'special', requirement: 1, isPremium: true },
 ];
 
 export const calculateBadgeProgress = (
   sessions: Session[],
   tbreaks: TBreak[],
-  settings?: { dailyLimit?: number; weeklyLimit?: number },
+  settings?: { dailyLimit?: number; weeklyLimit?: number; currency?: string },
   recoveryMode?: { isRecoveryMode: boolean; sobrietyStartDate: number | null }
 ): Badge[] => {
+  const userCurrency = settings?.currency || 'USD';
   const badges: Badge[] = [];
 
   const uniqueStrains = new Set(sessions.filter(s => s.strain).map(s => s.strain!.toLowerCase()));
@@ -470,8 +513,10 @@ export const calculateBadgeProgress = (
       case 'high_roller':
       case 'whale':
       case 'loot_hoarder':
-        progress = Math.min((totalSpent / def.requirement) * 100, 100);
-        if (totalSpent >= def.requirement) unlockedAt = Date.now();
+        // Convert USD threshold to user's currency for fair comparison
+        const localThreshold = convertUSDToLocalCurrency(def.requirement, userCurrency);
+        progress = Math.min((totalSpent / localThreshold) * 100, 100);
+        if (totalSpent >= localThreshold) unlockedAt = Date.now();
         break;
 
       case 'botanist':

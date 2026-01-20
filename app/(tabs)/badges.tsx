@@ -1,11 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../../src/store/appStore';
 import { useEffect, useState } from 'react';
 import { BADGE_DEFINITIONS, getBadgeImage } from '../../src/utils/badges';
 import { Badge } from '../../src/types';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../src/context/ThemeContext';
+import { usePremium } from '../../src/context/PremiumContext';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const CONTAINER_PADDING = 12;
@@ -14,7 +17,9 @@ const CARD_WIDTH = (width - (CONTAINER_PADDING * 2) - GAP) / 2;
 
 export default function BadgesScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { badges, loadBadges, sessions } = useAppStore();
+  const { isPremium } = usePremium();
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'sobriety' | 'tbreak' | 'usage' | 'time' | 'financial' | 'strains' | 'volume' | 'variety' | 'special'>('all');
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
 
@@ -108,13 +113,28 @@ export default function BadgesScreen() {
           {filteredBadges.map(badge => {
             const def = BADGE_DEFINITIONS.find(d => d.id === badge.id);
             const isUnlocked = !!badge.unlockedAt;
+            const isPremiumBadge = def?.isPremium || false;
+            const isLocked = !isUnlocked && isPremiumBadge && !isPremium;
             const currentProgress = Math.round((badge.progress / 100) * badge.requirement);
 
             return (
               <TouchableOpacity
                 key={badge.id}
                 activeOpacity={0.8}
-                onPress={() => setSelectedBadge(badge)}
+                onPress={() => {
+                  if (isLocked) {
+                    Alert.alert(
+                      'Premium Badge',
+                      'This badge is part of Herb Pro. Upgrade to unlock 40+ premium badges!',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Upgrade', onPress: () => router.push('/(tabs)/settings') }
+                      ]
+                    );
+                  } else {
+                    setSelectedBadge(badge);
+                  }
+                }}
                 style={[
                   styles.badgeCard,
                   { backgroundColor: theme.card, borderColor: theme.primary },
@@ -135,9 +155,14 @@ export default function BadgesScreen() {
                       <Text style={styles.badgeCheckmarkText}>✓</Text>
                     </View>
                   )}
+                  {isLocked && (
+                    <View style={styles.badgePremiumLockOverlay}>
+                      <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                    </View>
+                  )}
                 </View>
-                
-                <Text 
+
+                <Text
                   style={[
                     styles.badgeName,
                     { color: theme.text },
@@ -149,7 +174,9 @@ export default function BadgesScreen() {
                   {badge.name}
                 </Text>
 
-                {!isUnlocked && currentProgress > 0 ? (
+                {isLocked ? (
+                  <Text style={styles.premiumBadgeText}>PREMIUM</Text>
+                ) : !isUnlocked && currentProgress > 0 ? (
                    <View style={[styles.badgeProgressBar, { backgroundColor: theme.border }]}>
                      <View style={[styles.badgeProgressFill, { width: `${badge.progress}%`, backgroundColor: theme.primary }]} />
                    </View>
@@ -175,19 +202,24 @@ export default function BadgesScreen() {
         )}
       </ScrollView>
 
-      {selectedBadge && (
+      {selectedBadge && (() => {
+        const selectedDef = BADGE_DEFINITIONS.find(d => d.id === selectedBadge.id);
+        const isSelectedPremium = selectedDef?.isPremium || false;
+        const isSelectedLocked = !selectedBadge.unlockedAt && isSelectedPremium && !isPremium;
+
+        return (
         <View style={styles.overlayContainer}>
           <BlurView intensity={30} style={StyleSheet.absoluteFill} tint="dark" />
-          
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            onPress={() => setSelectedBadge(null)} 
+
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSelectedBadge(null)}
             activeOpacity={1}
           />
 
           <View style={[styles.detailCard, { backgroundColor: theme.card }]}>
-            <TouchableOpacity 
-              style={[styles.closeButton, { backgroundColor: theme.inputBackground }]} 
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: theme.inputBackground }]}
               onPress={() => setSelectedBadge(null)}
             >
               <Text style={[styles.closeButtonText, { color: theme.textSecondary }]}>✕</Text>
@@ -202,14 +234,24 @@ export default function BadgesScreen() {
                 ]}
                 resizeMode="contain"
               />
+              {isSelectedLocked && (
+                <View style={styles.detailPremiumLockOverlay}>
+                  <Ionicons name="lock-closed" size={80} color="#F59E0B" />
+                </View>
+              )}
             </View>
 
             <Text style={[styles.detailTitle, { color: theme.text }]}>{selectedBadge.name}</Text>
-            
+
             <View style={styles.detailStatusContainer}>
               {selectedBadge.unlockedAt ? (
                 <View style={styles.detailUnlockedBadge}>
                   <Text style={styles.detailUnlockedText}>✓ UNLOCKED</Text>
+                </View>
+              ) : isSelectedLocked ? (
+                <View style={styles.detailPremiumBadge}>
+                  <Ionicons name="lock-closed" size={16} color="#F59E0B" style={{ marginRight: 6 }} />
+                  <Text style={styles.detailPremiumText}>PREMIUM</Text>
                 </View>
               ) : (
                 <View style={[styles.detailLockedBadge, { backgroundColor: theme.inputBackground }]}>
@@ -226,14 +268,14 @@ export default function BadgesScreen() {
               </View>
             )}
 
-            {!selectedBadge.unlockedAt && (
+            {!selectedBadge.unlockedAt && !isSelectedLocked && (
               <View style={styles.detailProgressContainer}>
                 <View style={[styles.detailProgressBarBg, { backgroundColor: theme.border }]}>
-                  <View 
+                  <View
                     style={[
-                      styles.detailProgressBarFill, 
+                      styles.detailProgressBarFill,
                       { width: `${selectedBadge.progress}%`, backgroundColor: theme.primary }
-                    ]} 
+                    ]}
                   />
                 </View>
                 <Text style={[styles.detailProgressText, { color: theme.textSecondary }]}>
@@ -241,9 +283,16 @@ export default function BadgesScreen() {
                 </Text>
               </View>
             )}
+
+            {isSelectedLocked && (
+              <Text style={[styles.detailPremiumMessage, { color: theme.textSecondary }]}>
+                Upgrade to premium to unlock this badge
+              </Text>
+            )}
           </View>
         </View>
-      )}
+        );
+      })()}
     </View>
   );
 }
@@ -524,5 +573,54 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 18,
     letterSpacing: 0.5,
+  },
+  badgePremiumLockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 12,
+  },
+  premiumBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  detailPremiumLockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+  },
+  detailPremiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  detailPremiumText: {
+    color: '#92400E',
+    fontWeight: 'bold',
+    fontSize: 16,
+    letterSpacing: 1,
+  },
+  detailPremiumMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
   },
 });

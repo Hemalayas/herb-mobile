@@ -46,10 +46,11 @@ export interface Badge {
   requirement: number;
   unlockedAt?: number;
   timesEarned?: number;
+  isPremium?: boolean;
 }
 
 // Mood Tracking Types (Independent from sessions)
-export type MoodType = 'happy' | 'neutral' | 'sad' | 'anxious' | 'stressed' | 'calm';
+export type MoodType = 'great' | 'happy' | 'calm' | 'neutral' | 'anxious' | 'stressed' | 'sad';
 export type CravingIntensity = 'none' | 'mild' | 'moderate' | 'strong' | 'intense';
 
 export interface MoodEntry {
@@ -73,4 +74,7 @@ export interface UserSettings {
   // 💰 New fields
   currency?: CurrencyCode;        // default: 'USD'
   averageSessionCost?: number;    // user's typical spend per session
+
+  // Onboarding
+  hasCompletedOnboarding?: boolean;
 }

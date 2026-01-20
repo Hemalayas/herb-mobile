@@ -10,8 +10,13 @@ import {
 } from 'react-native';
 import { useAppStore } from '../../src/store/appStore';
 import { useTheme } from '../../src/context/ThemeContext';
+import { usePremium } from '../../src/context/PremiumContext';
+import { useRouter } from 'expo-router';
 import { PieChart, BarChart, LineChart } from 'react-native-gifted-charts';
 import { format, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type TimeFilter = 'week' | 'month' | 'year' | 'lifetime';
 type TabType = 'usage' | 'mood';
@@ -41,6 +46,8 @@ const getCurrencySymbol = (code?: string): string => {
 
 export default function StatsScreen() {
   const theme = useTheme();
+  const router = useRouter();
+  const { isPremium } = usePremium();
   const {
     sessions,
     loadSessions,
@@ -277,6 +284,96 @@ export default function StatsScreen() {
     return strains.size;
   }, [filteredSessions]);
 
+  // Most used method
+  const mostUsedMethod = useMemo(() => {
+    if (filteredSessions.length === 0) return null;
+    const methodCounts: Record<string, number> = {};
+    filteredSessions.forEach(s => {
+      methodCounts[s.method] = (methodCounts[s.method] || 0) + 1;
+    });
+    const sorted = Object.entries(methodCounts).sort((a, b) => b[1] - a[1]);
+    return sorted[0] ? { method: sorted[0][0], count: sorted[0][1] } : null;
+  }, [filteredSessions]);
+
+  // Peak usage time
+  const peakUsageTime = useMemo(() => {
+    if (filteredSessions.length === 0) return null;
+    const timeRanges = [
+      { name: 'Morning', hours: [6, 7, 8, 9, 10, 11] },
+      { name: 'Afternoon', hours: [12, 13, 14, 15, 16, 17] },
+      { name: 'Evening', hours: [18, 19, 20, 21, 22, 23] },
+      { name: 'Night', hours: [0, 1, 2, 3, 4, 5] },
+    ];
+    const rangeCounts: Record<string, number> = {};
+    filteredSessions.forEach(s => {
+      const hour = new Date(s.timestamp).getHours();
+      timeRanges.forEach(range => {
+        if (range.hours.includes(hour)) {
+          rangeCounts[range.name] = (rangeCounts[range.name] || 0) + 1;
+        }
+      });
+    });
+    const sorted = Object.entries(rangeCounts).sort((a, b) => b[1] - a[1]);
+    return sorted[0] ? { time: sorted[0][0], count: sorted[0][1] } : null;
+  }, [filteredSessions]);
+
+  // Current streak (consecutive days with sessions)
+  const currentStreak = useMemo(() => {
+    if (sessions.length === 0) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const uniqueDays = new Set(
+      sessions.map(s => {
+        const d = new Date(s.timestamp);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })
+    );
+
+    const sortedDays = Array.from(uniqueDays).sort((a, b) => b - a);
+    let streak = 0;
+    let expectedDay = today.getTime();
+
+    for (const day of sortedDays) {
+      if (day === expectedDay) {
+        streak++;
+        expectedDay -= 24 * 60 * 60 * 1000;
+      } else if (day === expectedDay + 24 * 60 * 60 * 1000) {
+        // If today has no sessions but yesterday does, still count from yesterday
+        continue;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }, [sessions]);
+
+  // Weekly average (lifetime sessions only)
+  const weeklyAverage = useMemo(() => {
+    if (sessions.length === 0) return 0;
+    const firstSession = sessions[sessions.length - 1].timestamp;
+    const lastSession = sessions[0].timestamp;
+    const daysSpan = (lastSession - firstSession) / (24 * 60 * 60 * 1000);
+    const weeksSpan = Math.max(daysSpan / 7, 1);
+    return Math.round(sessions.length / weeksSpan * 10) / 10;
+  }, [sessions]);
+
+  // Social vs Solo ratio
+  const socialRatio = useMemo(() => {
+    if (filteredSessions.length === 0) return null;
+    const social = filteredSessions.filter(s => s.social).length;
+    const solo = filteredSessions.filter(s => !s.social).length;
+    const total = filteredSessions.length;
+    return {
+      social,
+      solo,
+      socialPercent: Math.round((social / total) * 100),
+      soloPercent: Math.round((solo / total) * 100),
+    };
+  }, [filteredSessions]);
+
   // Mood patterns
   const moodByMethod = useMemo(() => {
     const withMood = filteredSessions.filter(s => s.mood);
@@ -312,6 +409,7 @@ export default function StatsScreen() {
     if (filteredMoodEntries.length === 0) return [];
 
     const moodValues: Record<string, number> = {
+      great: 6,
       happy: 5,
       calm: 4,
       neutral: 3,
@@ -320,12 +418,22 @@ export default function StatsScreen() {
       sad: 0,
     };
 
+    const moodLabels: Record<string, string> = {
+      great: '🤩',
+      happy: '😊',
+      calm: '😌',
+      neutral: '😐',
+      anxious: '😰',
+      stressed: '😤',
+      sad: '😢',
+    };
+
     const sortedEntries = [...filteredMoodEntries].sort((a, b) => a.timestamp - b.timestamp);
 
     return sortedEntries.map(entry => ({
       value: moodValues[entry.mood] || 3,
       label: format(new Date(entry.timestamp), timeFilter === 'week' ? 'EEE' : 'MMM d'),
-      dataPointText: entry.mood,
+      dataPointText: moodLabels[entry.mood] || '😐',
     })).slice(-20); // Show last 20 points
   }, [filteredMoodEntries, timeFilter]);
 
@@ -339,6 +447,7 @@ export default function StatsScreen() {
     });
 
     const moodColors: Record<string, string> = {
+      great: '#10B981',
       happy: '#22C55E',
       calm: '#0EA5E9',
       neutral: '#6B7280',
@@ -348,6 +457,7 @@ export default function StatsScreen() {
     };
 
     const moodEmojis: Record<string, string> = {
+      great: '🤩',
       happy: '😊',
       calm: '😌',
       neutral: '😐',
@@ -426,6 +536,7 @@ export default function StatsScreen() {
 
     // Calculate average mood scores for session days vs non-session days
     const moodValues: Record<string, number> = {
+      great: 6,
       happy: 5,
       calm: 4,
       neutral: 3,
@@ -714,18 +825,23 @@ export default function StatsScreen() {
           styles.tabButton,
           {
             backgroundColor: isActive ? theme.primary : 'transparent',
-            borderBottomWidth: isActive ? 3 : 0,
-            borderBottomColor: theme.primary,
           },
         ]}
         onPress={() => setActiveTab(tab)}
       >
-        <Text style={styles.tabIcon}>{icon}</Text>
+        <Text
+          style={[
+            styles.tabIcon,
+            { color: isActive ? '#FFFFFF' : theme.textSecondary },
+          ]}
+        >
+          {icon}
+        </Text>
         <Text
           style={[
             styles.tabButtonText,
             {
-              color: isActive ? theme.text : theme.textSecondary,
+              color: isActive ? '#FFFFFF' : theme.textSecondary,
             },
           ]}
         >
@@ -801,8 +917,16 @@ export default function StatsScreen() {
         </Text>
       </View>
 
-      {/* TAB SWITCHER */}
-      <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
+      {/* TAB SWITCHER – pill style like date filter */}
+      <View
+        style={[
+          styles.tabContainer,
+          {
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+          },
+        ]}
+      >
         <TabButton tab="usage" label="Usage" icon="📊" />
         <TabButton tab="mood" label="Mood & Feelings" icon="🧠" />
       </View>
@@ -823,10 +947,7 @@ export default function StatsScreen() {
         <FilterButton filter="lifetime" label="All time" />
       </View>
 
-      {/* Conditionally render based on active tab */}
-      {activeTab === 'usage' ? (
-        <>
-      {/* QUICK STATS STRIP */}
+      {/* QUICK STATS STRIP - Always visible, independent of tab */}
       <View style={styles.statsRow}>
         <View
           style={[
@@ -839,10 +960,12 @@ export default function StatsScreen() {
           <View style={[styles.statIconPill, { backgroundColor: 'rgba(34,197,94,0.12)' }]}>
             <Text style={styles.statEmoji}>📊</Text>
           </View>
-          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Sessions</Text>
-          <Text style={[styles.statNumber, { color: '#22C55E' }]}>
-            {filteredSessions.length}
-          </Text>
+          <View style={styles.statContent}>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Sessions</Text>
+            <Text style={[styles.statNumber, { color: '#22C55E' }]}>
+              {filteredSessions.length}
+            </Text>
+          </View>
         </View>
 
         <View
@@ -856,10 +979,12 @@ export default function StatsScreen() {
           <View style={[styles.statIconPill, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
             <Text style={styles.statEmoji}>💰</Text>
           </View>
-          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Spent</Text>
-          <Text style={[styles.statNumber, { color: '#F59E0B' }]}>
-            {currencySymbol}{totalSpending.toFixed(0)}
-          </Text>
+          <View style={styles.statContent}>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Spent</Text>
+            <Text style={[styles.statNumber, { color: '#F59E0B' }]}>
+              {currencySymbol}{totalSpending.toFixed(0)}
+            </Text>
+          </View>
         </View>
 
         <View
@@ -873,12 +998,192 @@ export default function StatsScreen() {
           <View style={[styles.statIconPill, { backgroundColor: 'rgba(99,102,241,0.12)' }]}>
             <Text style={styles.statEmoji}>🌿</Text>
           </View>
-          <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Consumed</Text>
-          <Text style={[styles.statNumber, { color: '#6366F1' }]}>
-            {totalAmount.toFixed(1)}g
-          </Text>
+          <View style={styles.statContent}>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Consumed</Text>
+            <Text style={[styles.statNumber, { color: '#6366F1' }]}>
+              {totalAmount.toFixed(1)}g
+            </Text>
+          </View>
         </View>
       </View>
+
+      {/* PREMIUM STATS CARDS - Directly under main stats */}
+      {activeTab === 'usage' && (
+        <View style={[styles.section, { marginTop: 0, marginBottom: 24 }]}>
+          <View style={styles.premiumHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Advanced Insights
+            </Text>
+            {!isPremium && (
+              <View style={styles.premiumBadge}>
+                <Ionicons name="lock-closed" size={12} color="#F59E0B" />
+                <Text style={styles.premiumBadgeText}>Premium</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+            Detailed breakdown of your tracking patterns
+          </Text>
+
+          {/* Row 1: Top Method, Peak Time, Social % */}
+          <View style={styles.premiumStatsRow}>
+            {/* Top Method */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                  <Ionicons name="flame" size={20} color="#10B981" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary }]}>Top Method</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {mostUsedMethod ? mostUsedMethod.method.charAt(0).toUpperCase() + mostUsedMethod.method.slice(1) : 'N/A'}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+
+            {/* Peak Time */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(234,179,8,0.12)' }]}>
+                  <Ionicons name="time" size={20} color="#EAB308" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary }]}>Peak Time</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {peakUsageTime ? peakUsageTime.time : 'N/A'}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+
+            {/* Social % */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(59,130,246,0.12)' }]}>
+                  <Ionicons name="people" size={20} color="#3B82F6" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary }]}>Social</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {socialRatio ? `${socialRatio.socialPercent}%` : 'N/A'}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Row 2: Streak, Avg/Week, Days Logged */}
+          <View style={styles.premiumStatsRow}>
+            {/* Streak */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(168,85,247,0.12)' }]}>
+                  <Ionicons name="calendar" size={20} color="#A855F7" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary }]}>Streak</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {currentStreak} {currentStreak === 1 ? 'day' : 'days'}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+
+            {/* Avg/Week */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(236,72,153,0.12)' }]}>
+                  <Ionicons name="stats-chart" size={20} color="#EC4899" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary }]}>Avg/Week</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {weeklyAverage}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+
+            {/* Days Logged */}
+            <TouchableOpacity
+              style={[styles.premiumStatCard, { backgroundColor: theme.card }]}
+              activeOpacity={isPremium ? 1 : 0.7}
+              disabled={isPremium}
+            >
+              <View style={styles.premiumStatContent}>
+                <View style={[styles.statIconPill, { backgroundColor: 'rgba(20,184,166,0.12)' }]}>
+                  <Ionicons name="today" size={20} color="#14B8A6" />
+                </View>
+                <Text style={[styles.premiumStatLabel, { color: theme.textSecondary}]}>Days Logged</Text>
+                <Text style={[styles.premiumStatValue, { color: theme.text }]}>
+                  {new Set(sessions.map(s => {
+                    const d = new Date(s.timestamp);
+                    d.setHours(0, 0, 0, 0);
+                    return d.getTime();
+                  })).size}
+                </Text>
+              </View>
+              {!isPremium && (
+                <BlurView intensity={80} tint="dark" style={styles.premiumBlurOverlay}>
+                  <View style={styles.premiumLockIcon}>
+                    <Ionicons name="lock-closed" size={32} color="#F59E0B" />
+                  </View>
+                </BlurView>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Conditionally render based on active tab */}
+      {activeTab === 'usage' ? (
+        <>
 
       {/* USAGE TRENDS */}
       {sessionsOverTime.length > 0 && (
@@ -1394,6 +1699,7 @@ export default function StatsScreen() {
           </Text>
         </View>
       </View>
+
         </>
       ) : (
         <>
@@ -1419,34 +1725,66 @@ export default function StatsScreen() {
                     How your mood has been trending
                   </Text>
                   <View style={[styles.card, { backgroundColor: theme.card }]}>
-                    <LineChart
-                      data={moodTimeline}
-                      width={screenWidth - 88}
-                      height={220}
-                      spacing={moodTimeline.length > 10 ? 20 : 30}
-                      color={theme.primary}
-                      thickness={3}
-                      startFillColor={theme.primary + '40'}
-                      endFillColor={theme.primary + '10'}
-                      startOpacity={0.9}
-                      endOpacity={0.2}
-                      initialSpacing={20}
-                      endSpacing={20}
-                      noOfSections={5}
-                      maxValue={5}
-                      yAxisColor={theme.border}
-                      xAxisColor={theme.border}
-                      yAxisTextStyle={{ color: theme.text, fontSize: 12, fontWeight: '600' }}
-                      xAxisLabelTextStyle={{ color: theme.text, fontSize: 11, fontWeight: '600' }}
-                      areaChart
-                      curved
-                      isAnimated
-                      animationDuration={1000}
-                      hideDataPoints={false}
-                      dataPointsColor={theme.primary}
-                      dataPointsRadius={4}
-                      hideRules
-                    />
+                    <View style={{ flexDirection: 'row' }}>
+                      {/* Fixed Y-axis labels */}
+                      <View style={{ paddingTop: 40, paddingBottom: 16, justifyContent: 'space-between', height: 330 + 56 }}>
+                        {['Great', 'Happy', 'Calm', 'Neutral', 'Anxious', 'Stressed', 'Sad'].map((label, idx) => (
+                          <Text
+                            key={idx}
+                            style={{
+                              color: theme.text,
+                              fontSize: 12,
+                              fontWeight: '600',
+                              width: 60,
+                              textAlign: 'right',
+                              paddingRight: 8,
+                            }}
+                          >
+                            {label}
+                          </Text>
+                        ))}
+                      </View>
+
+                      {/* Scrollable chart */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingTop: 40, paddingBottom: 16, paddingRight: 16 }}
+                      >
+                        <LineChart
+                          data={moodTimeline}
+                          width={Math.max((screenWidth - 140) * 1.5, moodTimeline.length * 50)}
+                          height={330}
+                          spacing={moodTimeline.length > 10 ? 40 : 60}
+                          color={theme.primary}
+                          thickness={4}
+                          startFillColor={theme.primary + '40'}
+                          endFillColor={theme.primary + '10'}
+                          startOpacity={0.9}
+                          endOpacity={0.2}
+                          initialSpacing={10}
+                          endSpacing={30}
+                          noOfSections={6}
+                          maxValue={6}
+                          hideYAxisText
+                          yAxisColor={theme.border}
+                          xAxisColor={theme.border}
+                          xAxisLabelTextStyle={{ color: theme.text, fontSize: 12, fontWeight: '600' }}
+                          areaChart
+                          curved
+                          isAnimated
+                          animationDuration={1000}
+                          hideDataPoints={false}
+                          dataPointsColor="#FFFFFF"
+                          dataPointsRadius={7}
+                          textColor1={theme.text}
+                          textFontSize={16}
+                          textShiftY={-15}
+                          textShiftX={0}
+                          hideRules
+                        />
+                      </ScrollView>
+                    </View>
                   </View>
                 </View>
               )}
@@ -1531,7 +1869,7 @@ export default function StatsScreen() {
                     Mood on session days vs non-session days
                   </Text>
                   <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                    Average mood scores (0=sad, 5=happy)
+                    Average mood scores (0=sad, 6=great)
                   </Text>
                   <View style={[styles.card, { backgroundColor: theme.card }]}>
                     <BarChart
@@ -1547,8 +1885,8 @@ export default function StatsScreen() {
                       yAxisThickness={0}
                       yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
                       xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
-                      noOfSections={5}
-                      maxValue={5}
+                      noOfSections={6}
+                      maxValue={6}
                       isAnimated
                     />
                   </View>
@@ -1666,29 +2004,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 14,
     marginBottom: 24,
+    height: 110,
   },
   statCard: {
     flex: 1,
     borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 14,
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
-    minHeight: 100,
   },
   statIconPill: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    marginBottom: 8,
   },
   statEmoji: {
     fontSize: 16,
+  },
+  statContent: {
+    marginTop: 'auto',
   },
   statLabel: {
     fontSize: 11,
@@ -1918,20 +2256,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // TAB SWITCHER
+  // TAB SWITCHER – pill style
   tabContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    borderBottomWidth: 2,
+    marginHorizontal: 20,
+    borderRadius: 999,
+    padding: 5,
+    marginTop: 0,
     marginBottom: 16,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tabButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     gap: 8,
+    borderRadius: 999,
   },
   tabIcon: {
     fontSize: 18,
@@ -1972,5 +2319,78 @@ const styles = StyleSheet.create({
   triggerBarFill: {
     height: '100%',
     borderRadius: 999,
+  },
+  premiumHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    gap: 6,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F59E0B',
+    letterSpacing: 0.5,
+  },
+  premiumStatsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  premiumStatCard: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  premiumStatContent: {
+    flex: 1,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  premiumStatLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  premiumStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  premiumBlurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  premiumLockIcon: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 999,
+    padding: 12,
   },
 });
