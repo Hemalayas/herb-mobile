@@ -80,7 +80,7 @@ export default function PremiumPaywallScreen() {
         {/* Hero Section */}
         <View style={styles.hero}>
           <Image
-            source={require('../assets/level3.png')}
+            source={require('../assets/level2.png')}
             style={styles.mascot}
             resizeMode="contain"
           />

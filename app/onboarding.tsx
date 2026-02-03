@@ -26,7 +26,7 @@ interface OnboardingSlide {
 const slides: OnboardingSlide[] = [
   {
     id: '1',
-    title: 'Welcome to Munch! 👋',
+    title: 'Welcome to Herb! 👋',
     description: 'Your mindful companion for tracking cannabis use and building healthier habits',
     image: require('../assets/level1.png'),
     gradient: ['#00D08420', '#00D08410'] as const,
