@@ -29,13 +29,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "your-apple-id@example.com",
-        "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./service-account-key.json",
-        "track": "internal"
+        "appleId": "hemalkanjee03@gmail.com",
+        "ascAppId": "6756513978",
+        "appleTeamId": "6L6XQ73DBT"
       }
     }
   }

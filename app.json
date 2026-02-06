@@ -2,7 +2,7 @@
   "expo": {
     "name": "Herb - Cannabis Tracker",
     "slug": "herb-cannabis-tracker",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -19,9 +19,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hemalayas.herb",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized content and improve your app experience.",
         "LSApplicationQueriesSchemes": [
           "itms-apps"
         ]
@@ -38,7 +37,7 @@
         "backgroundColor": "#00D084"
       },
       "package": "com.hemalayas.herb",
-      "versionCode": 1,
+      "versionCode": 2,
       "permissions": [
         "android.permission.VIBRATE"
       ],
